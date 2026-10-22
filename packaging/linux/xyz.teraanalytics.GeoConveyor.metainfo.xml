@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>xyz.teraanalytics.GeoConveyor</id>
+  <name>GeoConveyor</name>
+  <summary>Batch geospatial processing, folder in, folder out</summary>
+  <developer_name>Tera Analytics</developer_name>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <description>
+    <p>GeoConveyor is a native batch front end for the terrio command-line tool. Pick an input
+    folder and an output folder, choose a function, and every matching file is processed in
+    parallel: convert, reproject, mosaic, rasterize, polygonize, DEM, calc and more.</p>
+    <p>It needs terrio installed on the host system (see terrio.opengeos.org; on Linux: curl -LsSf https://terrio.opengeos.org/install.sh | sh).</p>
+  </description>
+  <launchable type="desktop-id">xyz.teraanalytics.GeoConveyor.desktop</launchable>
+  <categories><category>Science</category><category>Geoscience</category></categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.3.0" date="2026-10-22">
+      <description><p>Input-type filtering on Convert, parallel sessions, Settings (tab order, light/dark, language), and English, Spanish, French and German.</p></description>
+    </release>
+  </releases>
+</component>

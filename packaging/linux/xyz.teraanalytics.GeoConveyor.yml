@@ -1,0 +1,44 @@
+# Flatpak manifest. Packages the prebuilt Linux binary (build it first, see ../README.md).
+# GeoConveyor runs the *host's* terrio through `flatpak-spawn --host`, so terrio must be
+# installed on the host (terrio's install script or pip install terrio). That needs the talk-name permission below.
+app-id: xyz.teraanalytics.GeoConveyor
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: geoconveyor
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=home            # input/output folders; same paths as the host so terrio sees them
+  - --filesystem=/mnt
+  - --filesystem=/media
+  - --filesystem=/run/media
+  - --talk-name=org.freedesktop.Flatpak   # run the host's terrio via flatpak-spawn --host
+modules:
+  - name: geoconveyor
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 geoconveyor-linux-x86_64 /app/bin/geoconveyor
+      - install -Dm644 xyz.teraanalytics.GeoConveyor.desktop /app/share/applications/xyz.teraanalytics.GeoConveyor.desktop
+      - install -Dm644 xyz.teraanalytics.GeoConveyor.metainfo.xml /app/share/metainfo/xyz.teraanalytics.GeoConveyor.metainfo.xml
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/xyz.teraanalytics.GeoConveyor.png
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/xyz.teraanalytics.GeoConveyor.png
+      - install -Dm644 icon-64.png /app/share/icons/hicolor/64x64/apps/xyz.teraanalytics.GeoConveyor.png
+      - install -Dm644 geoconveyor.svg /app/share/icons/hicolor/scalable/apps/xyz.teraanalytics.GeoConveyor.svg
+    sources:
+      - type: file
+        path: geoconveyor-linux-x86_64
+      - type: file
+        path: xyz.teraanalytics.GeoConveyor.desktop
+      - type: file
+        path: xyz.teraanalytics.GeoConveyor.metainfo.xml
+      - type: file
+        path: icon-256.png
+      - type: file
+        path: icon-128.png
+      - type: file
+        path: icon-64.png
+      - type: file
+        path: geoconveyor.svg

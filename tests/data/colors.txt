@@ -1,0 +1,3 @@
+0 blue
+50 green
+100 red

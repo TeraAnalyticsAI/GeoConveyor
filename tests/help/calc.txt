@@ -1,0 +1,46 @@
+Raster algebra: band math in NumPy syntax over one or more rasters (like gdal_calc.py)
+
+Usage: terrio calc [OPTIONS] --calc <CALC> [OUTPUT]
+
+Arguments:
+  [OUTPUT]  The output path (or --outfile)
+
+Options:
+      --outfile <OUTFILE>
+          The output path
+      --calc <CALC>
+          An expression in NumPy syntax over the inputs; repeat for several output bands
+      --input <NAME=PATH>
+          An input raster, as NAME=PATH (`-A PATH` is the same as `--input A=PATH`)
+      --input-band <NAME=N>
+          The band of an input, as NAME=N (`--A_band N` is the same as `--input-band A=N`)
+      --type <OUTPUT_TYPE>
+          The output type (Byte, Int16, UInt16, Int32, UInt32, Float32, Float64...). By default the smallest type holding all the inputs' types
+      --NoDataValue <NODATA>
+          The output nodata value, or `none`. By default a value depending on the output type
+      --hideNoData
+          Ignore the inputs' nodata values
+      --extent <EXTENT>
+          How to handle inputs with different extents: ignore (the default; sizes must match), fail, union or intersect
+      --projwin <ULX> <ULY> <LRX> <LRY>
+          Compute over this window, aligned on the first input's pixels
+      --allBands <NAME>
+          Process every band of this input, giving one output band each
+      --projectionCheck
+          Fail when the inputs' CRSs differ
+  -f, --format <FORMAT>
+          The output format's short name (`GTiff`, `COG`...). By default, chosen from the output's extension [alias: --of]
+      --compress <COMPRESS>
+          GeoTIFF/COG compression: NONE, LZW, DEFLATE, PACKBITS, JPEG, WEBP. GeoPackage tiles: PNG, JPEG
+      --tile-size <TILE_SIZE>
+          GeoTIFF/COG tile size
+      --bigtiff
+          Write BigTIFF
+      --co <KEY=VALUE>
+          A creation option, as GDAL names it: `KEY=VALUE` (Zarr: FORMAT=ZARR_V2|ZARR_V3; netCDF: FORMAT=NC|NC2|NC5|NC4|NC4C, COMPRESS=DEFLATE, ZLEVEL=1..9, CHUNKING=YES|NO)
+  -h, --help
+          Print help
+
+Inputs are also given as in gdal_calc.py: `-A a.tif -B b.tif --A_band 2`.
+
+Example: terrio calc -A nir.tif -B red.tif --calc "(A.astype(float32) - B) / (A.astype(float32) + B)" ndvi.tif

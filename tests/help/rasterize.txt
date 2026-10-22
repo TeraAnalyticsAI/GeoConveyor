@@ -1,0 +1,31 @@
+Burn vector geometries into a raster
+
+Usage: terrio rasterize [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The vector dataset
+  <OUTPUT>  The output raster
+
+Options:
+  -l, --layer <LAYERS>                  The layers to burn. Needed when the dataset has several
+      --sql <STATEMENT>                 Burn the result of "SELECT fields FROM layer [WHERE ...]" instead of whole layers
+      --burn <VALUE>                    A value to burn; give one per output band
+  -a, --attribute <FIELD>               Burn the values of this attribute field
+      --where <EXPR>                    Only burn the features matching this OGR SQL expression
+      --tr <XRES> <YRES>                The pixel size
+      --ts <WIDTH> <HEIGHT>             The size in pixels; one of them may be 0 to keep the aspect ratio
+      --te <XMIN> <YMIN> <XMAX> <YMAX>  The extent. By default, that of the layers
+      --tap                             Align the extent on multiples of the pixel size
+      --like <RASTER>                   Use the grid (size, georeferencing, CRS) of this raster
+      --ot <TYPE>                       The output data type: Byte, Int8, UInt16, Int16, UInt32, Int32, UInt64, Int64, Float32 or Float64 (the default)
+      --init <VALUE>                    The initial pixel values, one per band or one for all. 0 by default
+      --a-nodata <VALUE>                The nodata value of the output
+      --at                              Burn all pixels touched by lines or polygons, not only those whose centre is inside
+      --add                             Add the burn values to the pixels instead of replacing them
+      --a-srs <CRS>                     The output CRS. Geometries are taken to be in it, without reprojecting
+  -f, --format <FORMAT>                 The output format's short name (`GTiff`, `COG`...). By default, chosen from the output's extension [alias: --of]
+      --compress <COMPRESS>             GeoTIFF/COG compression: NONE, LZW, DEFLATE, PACKBITS, JPEG, WEBP. GeoPackage tiles: PNG, JPEG
+      --tile-size <TILE_SIZE>           GeoTIFF/COG tile size
+      --bigtiff                         Write BigTIFF
+      --co <KEY=VALUE>                  A creation option, as GDAL names it: `KEY=VALUE` (Zarr: FORMAT=ZARR_V2|ZARR_V3; netCDF: FORMAT=NC|NC2|NC5|NC4|NC4C, COMPRESS=DEFLATE, ZLEVEL=1..9, CHUNKING=YES|NO)
+  -h, --help                            Print help
