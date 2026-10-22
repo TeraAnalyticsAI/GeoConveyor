@@ -1,7 +1,0 @@
-List the formats terrio reads and writes
-
-Usage: terrio formats [OPTIONS]
-
-Options:
-      --json  Print JSON
-  -h, --help  Print help

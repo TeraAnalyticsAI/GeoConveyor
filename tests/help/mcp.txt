@@ -1,5 +1,0 @@
-error: unrecognized subcommand 'mcp'
-
-Usage: terrio <COMMAND>
-
-For more information, try '--help'.
