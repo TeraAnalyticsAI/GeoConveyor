@@ -26,4 +26,6 @@ Publisher: Tera Analytics (teraanalytics.xyz). Flatpak id: `xyz.teraanalytics.Ge
 - Only the GUI's own strings are translated; terrio's option descriptions stay English. pt/it/zh/ja are listed as "coming soon".
 - Windows code and the Flatpak/Windows installers have NEVER been built (written in a sandbox without those toolchains);
   expect small fixes on the first CI run. The Windows exe has no embedded icon yet (window icon is set at runtime).
+- Windows: `.cargo/config.toml` links the C runtime statically (`+crt-static`) so the exe runs without the VC++ Redistributable
+  (VCRUNTIME140.dll). Don't remove it; CI fails the Windows job if the exe imports that DLL again.
 - UI was checked under Xvfb with software GL; typing and native file dialogs were not exercised.

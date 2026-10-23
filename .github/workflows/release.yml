@@ -39,6 +39,15 @@ jobs:
       - run: pip install terrio
       - run: cargo test --release
       - run: cargo build --release
+      - name: Check the exe needs no Visual C++ runtime DLL
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -find '**\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          $deps = & $dumpbin /nologo /dependents target\release\geoconveyor.exe
+          $deps
+          if ($deps -match '(?i)vcruntime|msvcp') {
+            Write-Error "geoconveyor.exe imports the Visual C++ runtime; check .cargo/config.toml (crt-static)"; exit 1
+          }
       - name: Installer
         run: |
           choco install innosetup -y --no-progress
