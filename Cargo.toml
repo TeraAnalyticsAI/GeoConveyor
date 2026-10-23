@@ -24,6 +24,12 @@ dirs = "6"
 which = "8"
 open = "5"
 
+# Windows also gets the wgpu renderer (Direct3D 12, or Microsoft's WARP software renderer when
+# there is no GPU driver). VMs, Remote Desktop sessions and PCs without a vendor GPU driver often
+# only offer OpenGL 1.1, which egui_glow refuses ("egui_glow requires opengl 2.0+").
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts"] }
+
 [profile.release]
 opt-level = 3
 lto = "thin"

@@ -31,8 +31,24 @@ pub fn run() -> eframe::Result {
     if let Ok(icon) = eframe::icon_data::from_png_bytes(include_bytes!("../packaging/icon-256.png")) {
         viewport = viewport.with_icon(std::sync::Arc::new(icon));
     }
-    let options = eframe::NativeOptions { viewport, ..Default::default() };
+    #[allow(unused_mut)]
+    let mut options = eframe::NativeOptions { viewport, ..Default::default() };
+    #[cfg(windows)]
+    {
+        options.renderer = windows_renderer();
+    }
     eframe::run_native(APP_NAME, options, Box::new(|_cc| Ok(Box::new(App::new()))))
+}
+
+/// Windows draws with wgpu: Direct3D 12 on a real GPU, Microsoft's WARP software renderer otherwise.
+/// OpenGL (glow) needs 2.0+, which VMs, Remote Desktop and PCs without a GPU driver often lack.
+/// `GEOCONVEYOR_RENDERER=glow` forces OpenGL for a machine where Direct3D misbehaves.
+#[cfg(windows)]
+fn windows_renderer() -> eframe::Renderer {
+    match std::env::var("GEOCONVEYOR_RENDERER").map(|v| v.to_ascii_lowercase()).as_deref() {
+        Ok("glow") | Ok("opengl") | Ok("gl") => eframe::Renderer::Glow,
+        _ => eframe::Renderer::Wgpu,
+    }
 }
 
 // ---------------------------------------------------------------------------

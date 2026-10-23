@@ -28,4 +28,6 @@ Publisher: Tera Analytics (teraanalytics.xyz). Flatpak id: `xyz.teraanalytics.Ge
   expect small fixes on the first CI run. The Windows exe has no embedded icon yet (window icon is set at runtime).
 - Windows: `.cargo/config.toml` links the C runtime statically (`+crt-static`) so the exe runs without the VC++ Redistributable
   (VCRUNTIME140.dll). Don't remove it; CI fails the Windows job if the exe imports that DLL again.
+- Windows renders with wgpu (D3D12, WARP software fallback), Linux with glow. Plain OpenGL fails on Windows VMs/RDP
+  ("egui_glow requires opengl 2.0+"). `GEOCONVEYOR_RENDERER=glow` forces OpenGL on Windows.
 - UI was checked under Xvfb with software GL; typing and native file dialogs were not exercised.
