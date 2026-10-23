@@ -1,0 +1,43 @@
+Grid a point cloud into a raster: min, max, mean, IDW, count or standard deviation per cell (like PDAL's writers.gdal), or a TIN or nearest-neighbour interpolation (like gdal_grid)
+
+Usage: terrio grid [OPTIONS] --tr <RES> <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The point cloud (LAS, LAZ, COPC, EPT, PLY or E57; a path, URL or `s3://` object)
+  <OUTPUT>  The output raster
+
+Options:
+      --tr <RES>                        The cell size
+      --method <METHOD>                 How cells are computed: statistics of the points near each cell, as PDAL's writers.gdal (the default; the points are read in chunks, in bounded memory); linear, interpolated in the points' Delaunay triangulation (a TIN), as gdal_grid -a linear; or nearest, the nearest point's value, as gdal_grid -a nearest [default: statistics]
+      --stat <STATS>                    The statistics, one band each (comma-separated): min, max, mean, idw, count, stdev, or all. Bands are in that order [default: mean]
+      --dim <DIMENSION>                 The dimension gridded [default: z]
+      --radius <RADIUS>                 Statistics: points closer than this to a cell centre count towards it (by default the cell diagonal). Linear: the search radius of the nearest point outside the triangulation (0: nodata there). Nearest: the half-side of the square searched (by default, all points)
+      --power <POWER>                   The power of the inverse distance weights [default: 1]
+      --window-size <WINDOW_SIZE>       Fill empty cells from the cells within this many cells [default: 0]
+      --bin                             Count each point in the cell it falls in only, ignoring the radius
+      --te <XMIN> <YMIN> <XMAX> <YMAX>  The grid: the first cell's corner (XMIN, YMIN), and floor((MAX - MIN) / RES) + 1 cells each way, as in PDAL. By default, the points' bounds
+      --a-nodata <VALUE>                The nodata value [default: -9999]
+      --ot <TYPE>                       The output data type (Byte, Int16, UInt16, Int32, Float32, Float64...)
+      --a-srs <CRS>                     Assign this CRS to the points (and the raster), when the file has none or a wrong one
+  -f, --format <FORMAT>                 The output format's short name (`GTiff`, `COG`...). By default, chosen from the output's extension [alias: --of]
+      --compress <COMPRESS>             GeoTIFF/COG compression: NONE, LZW, DEFLATE, PACKBITS, JPEG, WEBP. GeoPackage tiles: PNG, JPEG
+      --tile-size <TILE_SIZE>           GeoTIFF/COG tile size
+      --bigtiff                         Write BigTIFF
+      --co <KEY=VALUE>                  A creation option, as GDAL names it: `KEY=VALUE` (Zarr: FORMAT=ZARR_V2|ZARR_V3; netCDF: FORMAT=NC|NC2|NC5|NC4|NC4C, COMPRESS=DEFLATE, ZLEVEL=1..9, CHUNKING=YES|NO)
+  -h, --help                            Print help
+
+Point cloud options:
+      --bounds <XMIN> <YMIN> <XMAX> <YMAX>
+          Keep the points in these bounds, in the input's CRS
+      --z-range <MIN> <MAX>
+          Keep the points with z in this range
+      --class <CLASSES>
+          Keep the points of these classifications (comma-separated, such as 2,6)
+      --returns <RETURNS>
+          Keep these returns of each pulse (comma-separated): first, last, intermediate, only
+      --max-level <LEVEL>
+          COPC and EPT: read down to this octree level (0 is the root)
+      --resolution <SPACING>
+          COPC and EPT: read the octree levels needed for this point spacing
+      --max-points <N>
+          Read at most about this many points: COPC and EPT down to the deepest level that fits, others by keeping every n-th point

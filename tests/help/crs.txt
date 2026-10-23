@@ -1,0 +1,14 @@
+Describe a coordinate reference system, or transform coordinates between two
+
+Usage: terrio crs [OPTIONS] <CRS> [COORDS]...
+
+Arguments:
+  <CRS>        The CRS: `EPSG:4326`, `EPSG:4326+5773` (a compound CRS), WKT, a PROJ string, or a file holding one
+  [COORDS]...  Coordinates to transform: x y [x y ...]
+
+Options:
+      --wkt                   Print the WKT definition
+      --to <CRS>              Transform coordinates into this CRS. Reads `x y` pairs from the arguments, or lines of `x y`, `x y z` or `x y z t` (t: a decimal year) from standard input when none are given, as `gdaltransform` does (printing `transformation failed.` for a point that fails). Heights go through geoid models between CRSs with heights (geographic 3D and compound CRSs)
+      --s_coord_epoch <YEAR>  The coordinate epoch of the source coordinates (a decimal year), for a dynamic source CRS, as `gdaltransform -s_coord_epoch` [alias: --s-coord-epoch]
+      --t_coord_epoch <YEAR>  The coordinate epoch of the target coordinates, for a dynamic target CRS, as `gdaltransform -t_coord_epoch` [alias: --t-coord-epoch]
+  -h, --help                  Print help

@@ -1,0 +1,47 @@
+Subset, resize, rescale or change the type of a raster (like gdal_translate)
+
+Usage: terrio translate [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The input raster
+  <OUTPUT>  The output path
+
+Options:
+  -b, --band <BANDS>
+          A band to keep, from 1; repeat for several
+      --ot <OT>
+          The output data type (Byte, Int16, UInt16, Int32, UInt32, Float32, Float64...)
+      --srcwin <XOFF> <YOFF> <XSIZE> <YSIZE>
+          A window in pixels
+      --projwin <ULX> <ULY> <LRX> <LRY>
+          A window in georeferenced coordinates (or `--projwin-srs`)
+      --projwin-srs <CRS>
+          The CRS of `--projwin`
+      --outsize <WIDTH> <HEIGHT>
+          The output size, in pixels or as a percentage (`50%`); 0 keeps the aspect ratio
+      --tr <XRES> <YRES>
+          The output resolution
+  -r, --resampling <RESAMPLING>
+          Resampling when resizing: near, bilinear, cubic, cubicspline, lanczos, average, rms, mode
+      --scale [<SCALE>...]
+          Rescale values: `--scale` (band min/max to the type's range), `--scale SRC_MIN SRC_MAX`, or `--scale SRC_MIN SRC_MAX DST_MIN DST_MAX`
+      --exponent <EXPONENT>
+          Apply a power function when rescaling
+      --a-nodata <A_NODATA>
+          Assign a nodata value, or `none` to remove it
+      --a-srs <CRS>
+          Assign a CRS
+      --a-ullr <ULX> <ULY> <LRX> <LRY>
+          Assign the bounds
+  -f, --format <FORMAT>
+          The output format's short name (`GTiff`, `COG`...). By default, chosen from the output's extension [alias: --of]
+      --compress <COMPRESS>
+          GeoTIFF/COG compression: NONE, LZW, DEFLATE, PACKBITS, JPEG, WEBP. GeoPackage tiles: PNG, JPEG
+      --tile-size <TILE_SIZE>
+          GeoTIFF/COG tile size
+      --bigtiff
+          Write BigTIFF
+      --co <KEY=VALUE>
+          A creation option, as GDAL names it: `KEY=VALUE` (Zarr: FORMAT=ZARR_V2|ZARR_V3; netCDF: FORMAT=NC|NC2|NC5|NC4|NC4C, COMPRESS=DEFLATE, ZLEVEL=1..9, CHUNKING=YES|NO)
+  -h, --help
+          Print help
