@@ -3,7 +3,7 @@
 //! A *session* is one independent workspace (its own folders, options, jobs and log) shown as a
 //! tab in the top bar, so several batches can run at once.
 
-use crate::help::{find_terrio, run_text, Backend};
+use crate::help::{find_terrio, run_text, Backend, LaunchProblem, VC_REDIST_URL};
 use crate::i18n::{self, t, tf};
 use crate::jobs::{make_jobs, preview, scan_files, shell_join, Job, Status};
 use crate::model::{normalize_order, FieldKind, Form, Globals, SessionSettings, Settings, TabState, Value};
@@ -22,6 +22,18 @@ const APP_NAME: &str = "GeoConveyor";
 const LABEL_W: f32 = 190.0;
 
 pub fn run() -> eframe::Result {
+    #[cfg(windows)]
+    {
+        // SEM_FAILCRITICALERRORS, inherited by every terrio we start: if terrio.exe can't load a DLL,
+        // Windows would otherwise pop a "System Error" box for each launch (dozens at start-up).
+        // The failure is shown in the app instead (help::LaunchProblem).
+        extern "system" {
+            fn SetErrorMode(mode: u32) -> u32;
+        }
+        unsafe {
+            SetErrorMode(0x0001);
+        }
+    }
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1200.0, 1000.0])
         .with_min_inner_size([760.0, 560.0])
@@ -650,12 +662,24 @@ fn show_form(ui: &mut egui::Ui, form: &mut Form, filter: &str, key: &str, tab: &
 
 fn show_tab(ui: &mut egui::Ui, tab: &mut TabState, be: &mut Backend, req: &mut Requests) {
     if tab.no_terrio {
-        ui.horizontal(|ui| {
-            ui.colored_label(Color32::from_rgb(239, 83, 80), t("terrio was not found. Choose its location in Settings, then press Reload."));
-            if ui.button(t("Settings")).clicked() {
-                req.open_settings = true;
-            }
-        });
+        if let Some(p) = be.problem {
+            ui.add(egui::Label::new(RichText::new(p.message()).color(Color32::from_rgb(239, 83, 80))).wrap());
+            ui.horizontal(|ui| {
+                if p == LaunchProblem::MissingDll {
+                    ui.hyperlink_to(t("Download the Visual C++ Redistributable (x64)"), VC_REDIST_URL);
+                }
+                if ui.button(t("Settings")).clicked() {
+                    req.open_settings = true;
+                }
+            });
+        } else {
+            ui.horizontal(|ui| {
+                ui.colored_label(Color32::from_rgb(239, 83, 80), t("terrio was not found. Choose its location in Settings, then press Reload."));
+                if ui.button(t("Settings")).clicked() {
+                    req.open_settings = true;
+                }
+            });
+        }
     } else {
         ui.add(egui::Label::new(RichText::new(&tab.summary).weak()).wrap());
     }

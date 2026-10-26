@@ -1,6 +1,7 @@
 //! Reading terrio's own `--help` (clap output) so the GUI offers every flag the
 //! installed version has.
 
+use crate::i18n::t;
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::Path;
@@ -219,6 +220,38 @@ pub struct Backend {
     pub exe: String,
     pub formats: Vec<Format>,
     pub help: HelpCache,
+    /// terrio exists but Windows could not start it (e.g. VCRUNTIME140.dll missing).
+    pub problem: Option<LaunchProblem>,
+}
+
+/// Microsoft's permanent link to the latest Visual C++ Redistributable (x64).
+pub const VC_REDIST_URL: &str = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+
+/// Why Windows refused to start terrio.exe, read from the process exit code.
+/// terrio's Windows builds link the Visual C++ runtime as a DLL, which many PCs lack.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaunchProblem {
+    /// STATUS_DLL_NOT_FOUND / STATUS_ENTRYPOINT_NOT_FOUND: a DLL is missing or too old.
+    MissingDll,
+    /// STATUS_INVALID_IMAGE_FORMAT: 32/64-bit or ARM build mismatch.
+    WrongBuild,
+}
+
+impl LaunchProblem {
+    pub fn from_code(code: Option<i32>) -> Option<LaunchProblem> {
+        match code? as u32 {
+            0xC000_0135 | 0xC000_0139 => Some(LaunchProblem::MissingDll),
+            0xC000_007B => Some(LaunchProblem::WrongBuild),
+            _ => None,
+        }
+    }
+
+    pub fn message(self) -> String {
+        match self {
+            LaunchProblem::MissingDll => t("terrio could not start because a Windows component it needs is missing (usually VCRUNTIME140.dll). Install the Microsoft Visual C++ Redistributable (x64), then press Reload."),
+            LaunchProblem::WrongBuild => t("terrio could not start: this terrio build does not match this PC (32/64-bit or ARM). Reinstall terrio, then press Reload."),
+        }
+    }
 }
 
 impl Backend {
@@ -231,7 +264,12 @@ impl Backend {
     pub fn reload(&mut self, exe: &str) {
         self.exe = exe.to_string();
         self.help.clear();
-        self.formats = get_formats(exe);
+        self.problem = if exe.is_empty() {
+            None
+        } else {
+            command(exe).arg("--version").output().ok().and_then(|o| LaunchProblem::from_code(o.status.code()))
+        };
+        self.formats = if self.problem.is_some() { vec![] } else { get_formats(exe) };
     }
 }
 
@@ -319,6 +357,14 @@ mod tests {
         assert_eq!(by("--tr").metas.len(), 2);
         assert_eq!(by("--cutline").desc, "Clip to a polygon");
         assert!(h.options.iter().all(|o| o.long != "--help"));
+    }
+
+    #[test]
+    fn windows_loader_errors_are_recognised() {
+        assert_eq!(LaunchProblem::from_code(Some(0xC000_0135_u32 as i32)), Some(LaunchProblem::MissingDll));
+        assert_eq!(LaunchProblem::from_code(Some(0xC000_007B_u32 as i32)), Some(LaunchProblem::WrongBuild));
+        assert_eq!(LaunchProblem::from_code(Some(1)), None);
+        assert_eq!(LaunchProblem::from_code(None), None);
     }
 
     #[test]

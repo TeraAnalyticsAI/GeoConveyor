@@ -48,10 +48,30 @@ begin
     Result := FileExists(ExpandConstant('{userappdata}\Python\Scripts\terrio.exe'));
 end;
 
-procedure CurStepChanged(CurStep: TSetupStep);
+// terrio's Windows builds (pip wheel and standalone zip) need the Visual C++ runtime DLLs.
+// GeoConveyor itself does not (it links the C runtime statically).
+function VCRuntimeInstalled: Boolean;
+var
+  Installed: Cardinal;
 begin
-  if (CurStep = ssPostInstall) and (not WizardSilent) and (not TerrioFound) then
+  Result := RegQueryDWordValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) and (Installed = 1);
+  if not Result then
+    Result := FileExists(ExpandConstant('{sys}\vcruntime140.dll'));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
+begin
+  if (CurStep <> ssPostInstall) or WizardSilent then
+    Exit;
+  if not TerrioFound then
     MsgBox('GeoConveyor needs the terrio command-line tool, which was not found on this PC.' + #13#10 + #13#10 +
            'Install Python, then run:  pip install terrio' + #13#10 + #13#10 +
            'GeoConveyor will find it automatically, or you can point to it in Settings.', mbInformation, MB_OK);
+  if not VCRuntimeInstalled then
+    if MsgBox('terrio needs the Microsoft Visual C++ Redistributable (x64), which is not installed on this PC.' + #13#10 + #13#10 +
+              'Download it from Microsoft now? Run the downloaded vc_redist.x64.exe, then start GeoConveyor.',
+              mbConfirmation, MB_YESNO) = IDYES then
+      ShellExec('open', 'https://aka.ms/vs/17/release/vc_redist.x64.exe', '', '', SW_SHOWNORMAL, ewNoWait, Code);
 end;

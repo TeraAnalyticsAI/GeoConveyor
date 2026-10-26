@@ -30,4 +30,7 @@ Publisher: Tera Analytics (teraanalytics.xyz). Flatpak id: `xyz.teraanalytics.Ge
   (VCRUNTIME140.dll). Don't remove it; CI fails the Windows job if the exe imports that DLL again.
 - Windows renders with wgpu (D3D12, WARP software fallback), Linux with glow. Plain OpenGL fails on Windows VMs/RDP
   ("egui_glow requires opengl 2.0+"). `GEOCONVEYOR_RENDERER=glow` forces OpenGL on Windows.
+- terrio's own Windows builds need VCRUNTIME140.dll (we can't fix that here). The app sets SetErrorMode so a failed terrio
+  launch shows no system popup; `help::LaunchProblem` turns the exit code into an in-app message, and the installer offers
+  the VC++ Redistributable download when it's missing.
 - UI was checked under Xvfb with software GL; typing and native file dialogs were not exercised.

@@ -3,7 +3,7 @@
 //! Results are written under a temporary name and renamed when terrio succeeds, so a
 //! cancelled or failed file never leaves half an output behind.
 
-use crate::help::command;
+use crate::help::{command, LaunchProblem};
 use crate::i18n::{t, tf};
 use crate::jobs::{path_size, shell_join, Job, Status};
 use std::io::Read;
@@ -178,9 +178,10 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
         }
         (Status::Done, size)
     } else {
-        message = match text.lines().last() {
-            Some(l) => l.chars().take(300).collect(),
-            None => tf("exit code {}", &[code.map_or("?".to_string(), |c| c.to_string())]),
+        message = match (LaunchProblem::from_code(code), text.lines().last()) {
+            (Some(p), _) => p.message(),
+            (None, Some(l)) => l.chars().take(300).collect(),
+            (None, None) => tf("exit code {}", &[code.map_or("?".to_string(), |c| c.to_string())]),
         };
         (Status::Failed, 0)
     };
