@@ -4,6 +4,8 @@ A Tera Analytics product: a native batch-processing GUI for geospatial data, pow
 
 Written in Rust with egui. One binary, no Python, no Qt.
 
+![GeoConveyor main window](GeoConveyor0_3_1-MainDisplay.jpg)
+
 ## Background
 
 GUIs over command-line geospatial tools have a long history. [OGR2GUI](https://github.com/zer0infinity/OGR2GUI) is one of the originals: a front end for GDAL/OGR's `ogr2ogr` that lets you pick inputs, outputs, projections, SQL queries and spatial filters without hand-writing a command line. It is a Windows x64 fork of Inventis's `ogr2gui`, released under GPL-3.0.
@@ -20,11 +22,49 @@ GeoConveyor carries the same idea forward:
 
 Both share the same principle: the GUI never reimplements the tool, it only builds the command for you. Credit to David Tran and the original Inventis authors for showing how useful that is.
 
-## Run
+## Install
 
-Prebuilt (Linux x86-64 and Windows, from the release workflow): run `./geoconveyor` (Linux) or the installer (Windows). It needs `terrio` installed (`curl -LsSf https://terrio.opengeos.org/install.sh | sh` on Linux/macOS, `pip install terrio`, or anywhere on PATH; browse to it otherwise).
+Download `GeoConveyor0_3_1_linux.zip` or `GeoConveyor0_3_1_windows.zip` from the repo root. GeoConveyor needs [terrio](https://github.com/opengeos/terrio) installed separately (see below).
 
-Build from source:
+### 1. Install terrio
+
+- **Linux / macOS:** `curl -LsSf https://terrio.opengeos.org/install.sh | sh`
+- **Windows (or any OS):** `pip install terrio`
+
+GeoConveyor finds terrio on your PATH (also `~/.local/bin` on Linux and `%APPDATA%\Python\Scripts` on Windows). If it is somewhere else, browse to it in Settings.
+
+### 2. Install GeoConveyor
+
+**Linux (x86-64).** Unzip `GeoConveyor0_3_1_linux.zip`. It holds two options:
+
+- `geoconveyor-linux-x86_64`, a single binary. Make it executable and run it:
+
+  ```
+  chmod +x geoconveyor-linux-x86_64
+  ./geoconveyor-linux-x86_64
+  ```
+
+  Move it somewhere on your PATH (for example `~/.local/bin/geoconveyor`) to launch it from anywhere.
+- `GeoConveyor-0.3.1.flatpak`, for a desktop-integrated install with a menu entry and icon:
+
+  ```
+  flatpak install --user GeoConveyor-0.3.1.flatpak
+  flatpak run xyz.teraanalytics.GeoConveyor
+  ```
+
+  The Flatpak sandbox cannot see programs on your system, so it runs your installed terrio through `flatpak-spawn --host`. terrio must therefore be installed on the host as in step 1, not inside the sandbox.
+
+**Windows.** Unzip `GeoConveyor0_3_1_windows.zip`. It holds two options:
+
+- `GeoConveyor-0.3.1-setup.exe`, the installer. Run it and follow the prompts.
+- `GeoConveyor-0.3.1-windows-portable.zip`, no install needed. Unzip it anywhere and run `geoconveyor.exe`.
+
+Notes for Windows:
+
+- The binaries are not code-signed yet, so SmartScreen may warn. Choose **More info**, then **Run anyway**.
+- terrio's own Windows build needs the Microsoft Visual C++ Redistributable (`VCRUNTIME140.dll`). If terrio will not start, GeoConveyor says so, and the installer offers the download. GeoConveyor itself does not need it.
+
+## Build
 
 ```
 # Rust toolchain, if you do not have one:  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
