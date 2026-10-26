@@ -285,7 +285,8 @@ fn field_counts_match_the_help_and_every_filter_builds() {
         let mut tab = TabState::new(spec);
         tab.rebuild(&mut be);
         if spec.subs {
-            assert_eq!(tab.subs.len(), 20, "filter subcommands: {:?}", tab.subs);
+            // terrio 0.4 had 20 point filters, 0.5 has 41; the GUI takes whatever the installed terrio lists
+            assert!(tab.subs.len() >= 20, "filter subcommands: {:?}", tab.subs);
             for s in tab.subs.clone() {
                 tab.sub = s.clone();
                 tab.ensure_form(&mut be);

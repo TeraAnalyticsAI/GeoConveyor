@@ -6,7 +6,7 @@ Publisher: Tera Analytics (teraanalytics.xyz). Flatpak id: `xyz.teraanalytics.Ge
 
 ## Commands
     cargo build --release          # target/release/geoconveyor
-    cargo test                     # lib tests + tests/engine.rs (needs real `terrio` on PATH; verified with 0.3.2 and 0.4.1)
+    cargo test                     # lib tests + tests/engine.rs (needs real `terrio` on PATH; verified with 0.3.2, 0.4.1 and 0.5.0)
     python3 tools/make_packs.py lang   # REGENERATE lang/{en,es,fr,de}.json after adding/changing any t("...") string
 
 ## Layout
