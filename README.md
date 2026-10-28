@@ -1,6 +1,6 @@
 # GeoConveyor
 
-A Tera Analytics product: a native batch-processing GUI for geospatial data, powered by [terrio](https://github.com/opengeos/terrio). One tab per command (info, convert, translate, warp, mosaic, rasterize, polygonize, dem, calc, proximity, sieve, grid, filter, crs, formats), every option of the installed terrio, folder in → folder out.
+A [Tera Analytics](https://teraanalytics.xyz/geoconveyor) product: a native batch-processing GUI for geospatial data, powered by [terrio](https://github.com/opengeos/terrio). One tab per command (info, convert, translate, warp, mosaic, rasterize, polygonize, dem, calc, proximity, sieve, grid, filter, crs, formats), every option of the installed terrio, folder in → folder out.
 
 Written in Rust with egui. One binary, no Python, no Qt.
 
