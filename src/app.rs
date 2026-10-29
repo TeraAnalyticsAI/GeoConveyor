@@ -5,14 +5,14 @@
 
 use crate::help::{find_terrio, run_text, Backend, LaunchProblem, VC_REDIST_URL};
 use crate::i18n::{self, t, tf};
-use crate::jobs::{make_jobs, preview, scan_files, shell_join, Job, Status};
+use crate::jobs::{make_jobs, preview_parts, scan_files, shell_join, Job, Status};
 use crate::model::{normalize_order, FieldKind, Form, Globals, SessionSettings, Settings, TabState, Value};
 use crate::runner::{self, apply_event, Event, RunHandle};
 use crate::specs::{specs, InputType, Kind, DEM_MODES, EXTENSIONS};
+use crate::style::{self, Icon};
 use eframe::egui;
 use egui::{Color32, RichText};
 use egui_extras::{Column, TableBuilder};
-use crate::style::{self, Icon};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
@@ -94,11 +94,7 @@ impl Session {
     }
 
     fn state(&self) -> SessionSettings {
-        SessionSettings {
-            globals: self.g.clone(),
-            active: self.active.clone(),
-            tabs: self.tabs.iter().map(|t| (t.spec.key.to_string(), t.state())).collect(),
-        }
+        SessionSettings { globals: self.g.clone(), active: self.active.clone(), tabs: self.tabs.iter().map(|t| (t.spec.key.to_string(), t.state())).collect() }
     }
 
     fn running(&self) -> bool {
@@ -125,11 +121,7 @@ impl Session {
     fn do_scan(&mut self, exe: &str) -> Result<bool, String> {
         let jobs = self.jobs_for(self.idx(), exe)?;
         let total: u64 = jobs.iter().map(|j| j.size_in).sum();
-        self.summary = if jobs.is_empty() {
-            t("No matching files found.")
-        } else {
-            tf("{} job(s), {} of input", &[jobs.len().to_string(), human(total)])
-        };
+        self.summary = if jobs.is_empty() { t("No matching files found.") } else { tf("{} job(s), {} of input", &[jobs.len().to_string(), human(total)]) };
         self.started = vec![None; jobs.len()];
         let any = !jobs.is_empty();
         self.jobs = jobs;
@@ -231,17 +223,22 @@ fn human(n: u64) -> String {
 
 fn fmt_time(s: f64) -> String {
     let s = s as u64;
-    if s >= 3600 { format!("{}:{:02}:{:02}", s / 3600, s % 3600 / 60, s % 60) } else { format!("{}:{:02}", s / 60, s % 60) }
+    if s >= 3600 {
+        format!("{}:{:02}:{:02}", s / 3600, s % 3600 / 60, s % 60)
+    } else {
+        format!("{}:{:02}", s / 60, s % 60)
+    }
 }
 
-fn status_color(s: Status) -> Color32 {
+fn status_color(ui: &egui::Ui, s: Status) -> Color32 {
+    let c = style::p(ui);
     match s {
-        Status::Done => Color32::from_rgb(76, 200, 110),
-        Status::Failed => Color32::from_rgb(239, 83, 80),
-        Status::Running => Color32::from_rgb(66, 165, 245),
-        Status::Skipped => Color32::from_rgb(190, 196, 206),
-        Status::Cancelled => Color32::from_rgb(255, 167, 38),
-        Status::Pending => Color32::from_rgb(246, 196, 80),
+        Status::Done => c.go,
+        Status::Failed => c.bad,
+        Status::Running => c.accent,
+        Status::Skipped => c.muted,
+        Status::Cancelled => c.code_num,
+        Status::Pending => c.muted,
     }
 }
 
@@ -322,11 +319,12 @@ struct App {
     allow_close: bool,
     close_session: Option<u32>,
     theme_applied: bool,
+    title_set: bool,
 }
 
 impl App {
     fn new() -> App {
-        let st = Settings::load();
+        let (st, load_warning) = Settings::load_checked();
         let lang = if st.language.is_empty() { i18n::detect() } else { st.language.clone() };
         i18n::set_language(&lang);
         let terrio = find_terrio(&st.terrio);
@@ -346,13 +344,28 @@ impl App {
         let version = read_version(&terrio);
         App {
             cur: st.active_session.min(sessions.len() - 1),
-            be, terrio, version, theme: Theme::parse(&st.theme), lang, order, sessions, session_counter: counter,
-            notice: None, picks: vec![], show_settings: false, show_help: false, show_about: false,
-            confirm_quit: false, allow_close: false, close_session: None, theme_applied: false,
+            be,
+            terrio,
+            version,
+            theme: Theme::parse(&st.theme),
+            lang,
+            order,
+            sessions,
+            session_counter: counter,
+            notice: load_warning,
+            picks: vec![],
+            show_settings: false,
+            show_help: false,
+            show_about: false,
+            confirm_quit: false,
+            allow_close: false,
+            close_session: None,
+            theme_applied: false,
+            title_set: false,
         }
     }
 
-    fn save_settings(&self) {
+    fn save_settings(&self) -> Result<(), String> {
         Settings {
             terrio: self.terrio.clone(),
             theme: self.theme.key().into(),
@@ -362,12 +375,15 @@ impl App {
             active_session: self.cur,
             ..Default::default()
         }
-        .save();
+        .save()
+        .map_err(|e| tf("Settings could not be saved: {}", &[e]))
     }
 
     fn reload(&mut self) {
         self.terrio = self.terrio.trim().to_string();
         self.be.reload(&self.terrio);
+        i18n::refresh_packs();
+        i18n::set_language(&self.lang);
         for s in &mut self.sessions {
             for t in &mut s.tabs {
                 t.rebuild(&mut self.be);
@@ -425,6 +441,9 @@ impl App {
 
     // File dialogs run on their own thread so the window never freezes.
     fn spawn_pick(&mut self, ctx: &egui::Context, sid: u32, req: PickReq) {
+        if !self.picks.is_empty() {
+            return; // a native dialog is already open; don't stack another one
+        }
         let (tx, rx) = channel();
         let ctx2 = ctx.clone();
         let home = dirs::home_dir().unwrap_or_default();
@@ -441,7 +460,13 @@ impl App {
         let save = matches!(req.pick, Pick::SaveLog);
         std::thread::spawn(move || {
             let d = rfd::FileDialog::new().set_title(title).set_directory(start_dir);
-            let r = if save { d.set_file_name("terrio-log.txt").save_file() } else if dir_mode { d.pick_folder() } else { d.pick_file() };
+            let r = if save {
+                d.set_file_name("terrio-log.txt").save_file()
+            } else if dir_mode {
+                d.pick_folder()
+            } else {
+                d.pick_file()
+            };
             let _ = tx.send(r);
             ctx2.request_repaint();
         });
@@ -482,7 +507,11 @@ fn read_version(exe: &str) -> String {
         return String::new();
     }
     let (ok, v) = run_text(exe, &["--version"]);
-    if ok { v.trim().to_string() } else { String::new() }
+    if ok {
+        v.trim().to_string()
+    } else {
+        String::new()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -562,100 +591,85 @@ fn show_form(ui: &mut egui::Ui, form: &mut Form, filter: &str, key: &str, tab: &
     let sections = form.sections.clone();
     let mut first = true;
     for sec in sections.iter() {
-        let shown: Vec<usize> = form
-            .fields
-            .iter()
-            .enumerate()
-            .filter(|(_, f)| &f.opt.section == sec && form.is_visible(f) && Form::matches(f, filter))
-            .map(|(i, _)| i)
-            .collect();
+        let shown: Vec<usize> = form.fields.iter().enumerate().filter(|(_, f)| &f.opt.section == sec && form.is_visible(f) && Form::matches(f, filter)).map(|(i, _)| i).collect();
         if shown.is_empty() {
             continue;
         }
         let open_by_default = first;
         first = false;
         let force = active || (pending && shown.iter().any(|&i| form.fields[i].is_set()));
-        egui::CollapsingHeader::new(RichText::new(t(sec)).strong())
-            .id_salt((key, sec))
-            .default_open(open_by_default)
-            .open(if force { Some(true) } else { None })
-            .show(ui, |ui| {
-                egui::Grid::new((key, sec, "grid")).num_columns(2).spacing([12.0, 4.0]).show(ui, |ui| {
-                    for &i in &shown {
-                        let f = &mut form.fields[i];
-                        let name = if f.opt.short.is_empty() { f.opt.long.clone() } else { format!("{}, {}", f.opt.short, f.opt.long) };
-                        let mut label = RichText::new(format!("{}{}", name, if f.opt.required { " *" } else { "" }));
-                        if f.opt.required {
-                            label = label.strong();
-                        }
-                        ui.vertical(|ui| {
-                            ui.set_min_width(LABEL_W);
-                            ui.label(label).on_hover_text(&f.opt.desc);
-                        });
-                        ui.vertical(|ui| {
-                            let hint = if f.opt.default.is_empty() { String::new() } else { tf("default: {}", &[f.opt.default.clone()]) };
-                            let tip = f.opt.desc.clone();
-                            match f.kind {
-                                FieldKind::Flag => {
-                                    if let Value::Flag(b) = &mut f.value {
-                                        style::toggle(ui, b).on_hover_text(&tip);
-                                    }
+        egui::CollapsingHeader::new(RichText::new(t(sec)).strong()).id_salt((key, sec)).default_open(open_by_default).open(if force { Some(true) } else { None }).show(ui, |ui| {
+            egui::Grid::new((key, sec, "grid")).num_columns(2).spacing([12.0, 4.0]).show(ui, |ui| {
+                for &i in &shown {
+                    let f = &mut form.fields[i];
+                    let name = if f.opt.short.is_empty() { f.opt.long.clone() } else { format!("{}, {}", f.opt.short, f.opt.long) };
+                    let mut label = RichText::new(format!("{}{}", name, if f.opt.required { " *" } else { "" }));
+                    if f.opt.required {
+                        label = label.strong();
+                    }
+                    ui.vertical(|ui| {
+                        ui.set_min_width(LABEL_W);
+                        ui.label(label).on_hover_text(&f.opt.desc);
+                    });
+                    ui.vertical(|ui| {
+                        let hint = if f.opt.default.is_empty() { String::new() } else { tf("default: {}", std::slice::from_ref(&f.opt.default)) };
+                        let tip = f.opt.desc.clone();
+                        match f.kind {
+                            FieldKind::Flag => {
+                                if let Value::Flag(b) = &mut f.value {
+                                    style::toggle(ui, b).on_hover_text(&tip);
                                 }
-                                FieldKind::Repeat => {
-                                    if let Value::Text(t_) = &mut f.value {
-                                        ui.add(
-                                            egui::TextEdit::multiline(t_)
-                                                .desired_rows(2)
-                                                .desired_width(width)
-                                                .hint_text(tf("one per line: {}", &[f.opt.metas[0].clone()])),
-                                        )
+                            }
+                            FieldKind::Repeat => {
+                                if let Value::Text(t_) = &mut f.value {
+                                    ui.add(egui::TextEdit::multiline(t_).desired_rows(2).desired_width(width).hint_text(tf("one per line: {}", &[f.opt.metas[0].clone()])))
                                         .on_hover_text(&tip);
-                                    }
                                 }
-                                FieldKind::Multi => {
-                                    let n = f.opt.metas.len();
-                                    let metas = f.opt.metas.clone();
-                                    if let Value::Multi(vs) = &mut f.value {
+                            }
+                            FieldKind::Multi => {
+                                let n = f.opt.metas.len();
+                                let metas = f.opt.metas.clone();
+                                if let Value::Multi(vs) = &mut f.value {
+                                    ui.horizontal(|ui| {
+                                        for (k, v) in vs.iter_mut().enumerate() {
+                                            edit(ui, v, &metas[k], (width / n as f32 - 6.0).max(50.0)).on_hover_text(&tip);
+                                        }
+                                    });
+                                }
+                            }
+                            FieldKind::Single => {
+                                let ph = if hint.is_empty() { f.opt.metas[0].to_lowercase() } else { hint.clone() };
+                                let choices = f.choices.clone();
+                                let picker = f.picker;
+                                let long = f.opt.long.clone();
+                                let start = String::new();
+                                if let Value::Text(t_) = &mut f.value {
+                                    if !choices.is_empty() {
+                                        let mut all = vec![String::new()];
+                                        all.extend(choices);
+                                        combo_edit(ui, t_, &all, &ph, width, &tip);
+                                    } else if picker {
                                         ui.horizontal(|ui| {
-                                            for (k, v) in vs.iter_mut().enumerate() {
-                                                edit(ui, v, &metas[k], (width / n as f32 - 6.0).max(50.0)).on_hover_text(&tip);
+                                            edit(ui, t_, &ph, width - 36.0).on_hover_text(&tip);
+                                            if ui.button("…").clicked() {
+                                                req.pick = Some(PickReq { pick: Pick::Field { tab: tab.to_string(), long }, start });
                                             }
                                         });
-                                    }
-                                }
-                                FieldKind::Single => {
-                                    let ph = if hint.is_empty() { f.opt.metas[0].to_lowercase() } else { hint.clone() };
-                                    let choices = f.choices.clone();
-                                    let picker = f.picker;
-                                    let long = f.opt.long.clone();
-                                    let start = String::new();
-                                    if let Value::Text(t_) = &mut f.value {
-                                        if !choices.is_empty() {
-                                            let mut all = vec![String::new()];
-                                            all.extend(choices);
-                                            combo_edit(ui, t_, &all, &ph, width, &tip);
-                                        } else if picker {
-                                            ui.horizontal(|ui| {
-                                                edit(ui, t_, &ph, width - 36.0).on_hover_text(&tip);
-                                                if ui.button("…").clicked() {
-                                                    req.pick = Some(PickReq { pick: Pick::Field { tab: tab.to_string(), long }, start });
-                                                }
-                                            });
-                                        } else {
-                                            edit(ui, t_, &ph, width).on_hover_text(&tip);
-                                        }
+                                    } else {
+                                        edit(ui, t_, &ph, width).on_hover_text(&tip);
                                     }
                                 }
                             }
-                            let d = &f.opt.desc;
-                            let short = if d.chars().count() > 150 { format!("{}…", d.chars().take(147).collect::<String>().trim_end()) } else { d.clone() };
-                            ui.add(egui::Label::new(RichText::new(short).small().weak()).wrap());
-                            ui.add_space(3.0);
-                        });
-                        ui.end_row();
-                    }
-                });
+                        }
+                        let d = &f.opt.desc;
+                        let short = if d.chars().count() > 150 { format!("{}…", d.chars().take(147).collect::<String>().trim_end()) } else { d.clone() };
+                        ui.add(egui::Label::new(RichText::new(short).small().weak()).wrap());
+                        ui.add_space(3.0);
+                    });
+                    ui.end_row();
+                }
             });
+        });
     }
     form.expand_pending = false;
 }
@@ -682,6 +696,11 @@ fn show_tab(ui: &mut egui::Ui, tab: &mut TabState, be: &mut Backend, req: &mut R
         }
     } else {
         ui.add(egui::Label::new(RichText::new(&tab.summary).weak()).wrap());
+        if let Some(f) = tab.form() {
+            if !f.notes.is_empty() {
+                ui.add(egui::Label::new(RichText::new(&f.notes).small().weak()).wrap());
+            }
+        }
     }
     ui.add_space(4.0);
     let key = tab.spec.key;
@@ -711,18 +730,22 @@ fn show_tab(ui: &mut egui::Ui, tab: &mut TabState, be: &mut Backend, req: &mut R
             edit(ui, &mut tab.patterns, "", 300.0).on_hover_text(t("Semicolon-separated, case-insensitive: *.tif;*.tiff;*.jp2"));
             if tab.mode_choice_visible() {
                 ui.label(t("Mode"));
-                egui::ComboBox::from_id_salt("mode")
-                    .selected_text(if tab.together { t("All files together, one output") } else { t("Each file separately") })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut tab.together, false, t("Each file separately"));
-                        ui.selectable_value(&mut tab.together, true, t("All files together, one output"));
-                    });
+                egui::ComboBox::from_id_salt("mode").selected_text(if tab.together { t("All files together, one output") } else { t("Each file separately") }).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut tab.together, false, t("Each file separately"));
+                    ui.selectable_value(&mut tab.together, true, t("All files together, one output"));
+                });
             }
             ui.end_row();
             if tab.needs_out() {
                 ui.label(t("Output extension"));
-                combo_edit(ui, &mut tab.ext, &ext_choices, "", 300.0,
-                    &t("Output file extension. Use /ept.json for an EPT dataset, or leave blank for directory outputs such as MVT."));
+                combo_edit(
+                    ui,
+                    &mut tab.ext,
+                    &ext_choices,
+                    "",
+                    300.0,
+                    &t("Output file extension. Use /ept.json for an EPT dataset, or leave blank for directory outputs such as MVT."),
+                );
                 if tab.effective_together() {
                     ui.label(t("Output name"));
                     edit(ui, &mut tab.name, "", 220.0);
@@ -732,12 +755,10 @@ fn show_tab(ui: &mut egui::Ui, tab: &mut TabState, be: &mut Backend, req: &mut R
                 }
                 ui.end_row();
                 ui.label(t("If output exists"));
-                egui::ComboBox::from_id_salt("exists")
-                    .selected_text(if tab.overwrite { t("Overwrite") } else { t("Skip") })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut tab.overwrite, false, t("Skip"));
-                        ui.selectable_value(&mut tab.overwrite, true, t("Overwrite"));
-                    });
+                egui::ComboBox::from_id_salt("exists").selected_text(if tab.overwrite { t("Overwrite") } else { t("Skip") }).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut tab.overwrite, false, t("Skip"));
+                    ui.selectable_value(&mut tab.overwrite, true, t("Overwrite"));
+                });
                 ui.end_row();
             }
         });
@@ -787,7 +808,7 @@ fn show_tab(ui: &mut egui::Ui, tab: &mut TabState, be: &mut Backend, req: &mut R
     }
     if spec.kind == Kind::Calc {
         ui.add(egui::Label::new(
-            RichText::new(t("Each file becomes input A. In 'together' mode the files become A, B, C… in name order. Extra fixed inputs can be added under --input (B=path)."))
+            RichText::new(t("Each file becomes input A. In 'together' mode the files become A, B, C… in name order, and the --input option is unavailable. Extra fixed inputs can be added under --input (B=path) when processing each file separately."))
                 .weak(),
         ).wrap());
     }
@@ -869,7 +890,10 @@ fn session_ui(ui: &mut egui::Ui, s: &mut Session, be: &mut Backend, order: &[Str
     egui::Panel::bottom("run").resizable(true).default_size(250.0).min_size(150.0).show(ui, |ui| {
         ui.add_space(4.0);
         let ti = s.idx();
-        let prev = preview(&s.tabs[ti], &s.g, &exe);
+        let (prev, prev_tokens) = match preview_parts(&s.tabs[ti], &s.g, &exe) {
+            Ok(parts) => (shell_join(&parts), parts),
+            Err(e) => (format!("# {e}"), vec![format!("# {e}")]),
+        };
         ui.horizontal(|ui| {
             ui.strong(t("Command"));
             if style::pill_button(ui, &t("Copy command"), Icon::Copy).clicked() {
@@ -885,7 +909,7 @@ fn session_ui(ui: &mut egui::Ui, s: &mut Session, be: &mut Backend, order: &[Str
                 }
             }
         });
-        style::command_box(ui, &prev);
+        style::command_box(ui, &prev_tokens);
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if ui.add_enabled(!running, |ui: &mut egui::Ui| style::pill_button(ui, &t("Scan folder"), Icon::None)).clicked() {
@@ -938,9 +962,15 @@ fn session_ui(ui: &mut egui::Ui, s: &mut Session, be: &mut Backend, order: &[Str
                 body.rows(26.0, s.jobs.len(), |mut row| {
                     let idx = row.index();
                     let j = &s.jobs[idx];
-                    row.col(|ui| { ui.label(&j.label); });
-                    row.col(|ui| { ui.label(if j.size_in > 0 { human(j.size_in) } else { String::new() }); });
-                    row.col(|ui| { style::status_pill(ui, &t(j.status.name()), status_color(j.status)); });
+                    row.col(|ui| {
+                        ui.label(&j.label);
+                    });
+                    row.col(|ui| {
+                        ui.label(if j.size_in > 0 { human(j.size_in) } else { String::new() });
+                    });
+                    row.col(|ui| {
+                        style::status_pill(ui, &t(j.status.name()), status_color(ui, j.status));
+                    });
                     row.col(|ui| {
                         let secs = match (j.status, s.started.get(idx).copied().flatten()) {
                             (Status::Running, Some(st)) => now.duration_since(st).as_secs_f64(),
@@ -950,7 +980,11 @@ fn session_ui(ui: &mut egui::Ui, s: &mut Session, be: &mut Backend, order: &[Str
                     });
                     row.col(|ui| {
                         let note = if j.status == Status::Done && j.dst.is_some() {
-                            let ratio = if j.size_in > 0 { format!("  ({})", tf("{}% of input", &[format!("{:.0}", j.size_out as f64 / j.size_in as f64 * 100.0)])) } else { String::new() };
+                            let ratio = if j.size_in > 0 {
+                                format!("  ({})", tf("{}% of input", &[format!("{:.0}", j.size_out as f64 / j.size_in as f64 * 100.0)]))
+                            } else {
+                                String::new()
+                            };
                             format!("{}{}", human(j.size_out), ratio)
                         } else {
                             j.message.clone()
@@ -1056,7 +1090,7 @@ impl App {
     fn dialogs(&mut self, ctx: &egui::Context) {
         // closing while a batch runs
         if self.confirm_quit {
-            egui::Window::new(APP_NAME).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            egui::Window::new(APP_NAME).id(egui::Id::unique("confirm_quit")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                 ui.label(t("A batch is running. Cancel it and quit?"));
                 ui.horizontal(|ui| {
                     if ui.button(t("Cancel batch and quit")).clicked() {
@@ -1065,7 +1099,7 @@ impl App {
                                 r.cancel();
                             }
                         }
-                        self.save_settings();
+                        let _ = self.save_settings();
                         self.allow_close = true;
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
@@ -1076,7 +1110,7 @@ impl App {
             });
         }
         if let Some(id) = self.close_session {
-            egui::Window::new(APP_NAME).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            egui::Window::new(APP_NAME).id(egui::Id::unique("close_session")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                 ui.label(t("This tab is running a batch. Cancel it and close the tab?"));
                 ui.horizontal(|ui| {
                     if ui.button(t("Cancel batch and close")).clicked() {
@@ -1090,7 +1124,7 @@ impl App {
             });
         }
         if let Some(msg) = self.notice.clone() {
-            egui::Window::new(APP_NAME).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            egui::Window::new(APP_NAME).id(egui::Id::unique("notice")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
                 ui.set_max_width(520.0);
                 ui.label(msg);
                 if ui.button("OK").clicked() {
@@ -1130,7 +1164,7 @@ impl App {
             let packs = i18n::all_packs();
             let current_name = packs.iter().find(|p| p.code == self.lang).map(|p| p.name.clone()).unwrap_or_else(|| "English".into());
             egui::ComboBox::from_id_salt("lang").selected_text(current_name).show_ui(ui, |ui| {
-                for p in &packs {
+                for p in packs.iter() {
                     if ui.selectable_label(self.lang == p.code, &p.name).clicked() {
                         new_lang = Some(p.code.clone());
                     }
@@ -1141,7 +1175,12 @@ impl App {
                     }
                 }
             });
-            ui.add(egui::Label::new(RichText::new(t("Only the program's own text is translated. Option names and descriptions come from terrio and stay as it writes them.")).small().weak()).wrap());
+            ui.add(
+                egui::Label::new(
+                    RichText::new(t("Only the program's own text is translated. Option names and descriptions come from terrio and stay as it writes them.")).small().weak(),
+                )
+                .wrap(),
+            );
             ui.add_space(8.0);
 
             ui.strong(t("Order of functions"));
@@ -1200,7 +1239,9 @@ impl App {
             self.spawn_pick(ctx, sid, PickReq { pick: Pick::Exe, start });
         }
         if changed {
-            self.save_settings();
+            if let Err(e) = self.save_settings() {
+                self.notice = Some(e);
+            }
         }
         self.show_settings = open;
     }
@@ -1234,7 +1275,7 @@ impl App {
             ui.label(t("A Tera Analytics product."));
             ui.label(t("A native batch front end for terrio."));
             if !self.version.is_empty() {
-                ui.label(tf("Using {}", &[self.version.clone()]));
+                ui.label(tf("Using {}", std::slice::from_ref(&self.version)));
             }
             ui.label(t("Built with Rust and egui."));
             ui.add_space(6.0);
@@ -1267,7 +1308,9 @@ impl eframe::App for App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.confirm_quit = true;
             } else {
-                self.save_settings();
+                if let Err(e) = self.save_settings() {
+                    self.notice = Some(e);
+                }
             }
         }
 
@@ -1295,8 +1338,11 @@ impl eframe::App for App {
         }
         self.dialogs(&ctx);
 
-        let title = format!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+        if !self.title_set {
+            let title = format!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+            self.title_set = true;
+        }
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -1305,6 +1351,7 @@ impl eframe::App for App {
                 r.cancel();
             }
         }
-        self.save_settings();
+        runner::kill_all();
+        let _ = self.save_settings();
     }
 }

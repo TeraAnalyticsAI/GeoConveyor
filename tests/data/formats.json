@@ -1,0 +1,512 @@
+[
+  {
+    "name": "GTiff",
+    "long_name": "GeoTIFF",
+    "kind": "raster",
+    "extensions": [
+      "tif",
+      "tiff"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "COG",
+    "long_name": "Cloud Optimized GeoTIFF",
+    "kind": "raster",
+    "extensions": [
+      "tif",
+      "tiff"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "AAIGrid",
+    "long_name": "Esri ASCII Grid",
+    "kind": "raster",
+    "extensions": [
+      "asc"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "AIG",
+    "long_name": "Esri Binary Grid",
+    "kind": "raster",
+    "extensions": [
+      "adf"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "EHdr",
+    "long_name": "Esri .hdr Labelled (BIL, FLT)",
+    "kind": "raster",
+    "extensions": [
+      "bil",
+      "flt"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GRASSASCIIGrid",
+    "long_name": "GRASS ASCII Raster",
+    "kind": "raster",
+    "extensions": [],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GSBG",
+    "long_name": "Surfer Grid",
+    "kind": "raster",
+    "extensions": [
+      "grd"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "PCRaster",
+    "long_name": "PCRaster",
+    "kind": "raster",
+    "extensions": [
+      "map"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "SAGA",
+    "long_name": "SAGA GIS Binary Grid",
+    "kind": "raster",
+    "extensions": [
+      "sdat",
+      "sgrd"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "RST",
+    "long_name": "Idrisi / TerrSet Raster",
+    "kind": "raster",
+    "extensions": [
+      "rst",
+      "rdc"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "ERS",
+    "long_name": "ER Mapper",
+    "kind": "raster",
+    "extensions": [
+      "ers"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "ENVI",
+    "long_name": "ENVI Labelled Raster",
+    "kind": "raster",
+    "extensions": [
+      "envi",
+      "hdr",
+      "dat",
+      "bsq",
+      "bip"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "HFA",
+    "long_name": "ERDAS Imagine",
+    "kind": "raster",
+    "extensions": [
+      "img"
+    ],
+    "read": true,
+    "write": false
+  },
+  {
+    "name": "GPKG",
+    "long_name": "GeoPackage Tiles",
+    "kind": "raster",
+    "extensions": [
+      "gpkg"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "JP2",
+    "long_name": "JPEG 2000",
+    "kind": "raster",
+    "extensions": [
+      "jp2",
+      "j2k"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "PNG",
+    "long_name": "PNG with World File",
+    "kind": "raster",
+    "extensions": [
+      "png"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "JPEG",
+    "long_name": "JPEG with World File",
+    "kind": "raster",
+    "extensions": [
+      "jpg",
+      "jpeg"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "XYZ",
+    "long_name": "XYZ ASCII Grid",
+    "kind": "raster",
+    "extensions": [
+      "xyz"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "Zarr",
+    "long_name": "Zarr v2/v3",
+    "kind": "raster",
+    "extensions": [
+      "zarr"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "DTED",
+    "long_name": "DTED Elevation",
+    "kind": "raster",
+    "extensions": [
+      "dt0",
+      "dt1",
+      "dt2"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "netCDF",
+    "long_name": "Network Common Data Format",
+    "kind": "raster",
+    "extensions": [
+      "nc",
+      "nc4",
+      "cdf"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "HDF5",
+    "long_name": "Hierarchical Data Format Release 5",
+    "kind": "raster",
+    "extensions": [
+      "h5",
+      "hdf5",
+      "he5"
+    ],
+    "read": true,
+    "write": false
+  },
+  {
+    "name": "VRT",
+    "long_name": "Virtual Raster",
+    "kind": "raster",
+    "extensions": [
+      "vrt"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "STACIT",
+    "long_name": "Spatio-Temporal Asset Catalog Items",
+    "kind": "raster",
+    "extensions": [],
+    "read": true,
+    "write": false
+  },
+  {
+    "name": "MBTiles",
+    "long_name": "MBTiles",
+    "kind": "raster",
+    "extensions": [
+      "mbtiles"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "PMTiles",
+    "long_name": "ProtoMap Tiles",
+    "kind": "raster",
+    "extensions": [
+      "pmtiles"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GeoJSON",
+    "long_name": "GeoJSON",
+    "kind": "vector",
+    "extensions": [
+      "geojson",
+      "json"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GeoJSONSeq",
+    "long_name": "GeoJSON text sequences",
+    "kind": "vector",
+    "extensions": [
+      "geojsonl",
+      "geojsons",
+      "geojsonseq"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "TopoJSON",
+    "long_name": "TopoJSON",
+    "kind": "vector",
+    "extensions": [
+      "topojson"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GPKG",
+    "long_name": "GeoPackage",
+    "kind": "vector",
+    "extensions": [
+      "gpkg"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "Parquet",
+    "long_name": "GeoParquet",
+    "kind": "vector",
+    "extensions": [
+      "parquet",
+      "geoparquet"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "FlatGeobuf",
+    "long_name": "FlatGeobuf",
+    "kind": "vector",
+    "extensions": [
+      "fgb"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "ESRI Shapefile",
+    "long_name": "Esri Shapefile",
+    "kind": "vector",
+    "extensions": [
+      "shp"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "KML",
+    "long_name": "Keyhole Markup Language",
+    "kind": "vector",
+    "extensions": [
+      "kml"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "KMZ",
+    "long_name": "Zipped KML",
+    "kind": "vector",
+    "extensions": [
+      "kmz"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GML",
+    "long_name": "Geography Markup Language",
+    "kind": "vector",
+    "extensions": [
+      "gml"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "GPX",
+    "long_name": "GPS Exchange Format",
+    "kind": "vector",
+    "extensions": [
+      "gpx"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "MapInfo File",
+    "long_name": "MapInfo TAB and Interchange Format",
+    "kind": "vector",
+    "extensions": [
+      "mif",
+      "tab"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "OSM",
+    "long_name": "OpenStreetMap PBF and XML",
+    "kind": "vector",
+    "extensions": [
+      "pbf",
+      "osm"
+    ],
+    "read": true,
+    "write": false
+  },
+  {
+    "name": "CSV",
+    "long_name": "Comma Separated Value",
+    "kind": "vector",
+    "extensions": [
+      "csv",
+      "tsv"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "MBTiles",
+    "long_name": "MBTiles",
+    "kind": "vector",
+    "extensions": [
+      "mbtiles"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "PMTiles",
+    "long_name": "ProtoMap Tiles",
+    "kind": "vector",
+    "extensions": [
+      "pmtiles"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "MVT",
+    "long_name": "Mapbox Vector Tiles",
+    "kind": "vector",
+    "extensions": [
+      "mvt"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "LAS",
+    "long_name": "ASPRS LAS 1.0 to 1.4",
+    "kind": "pointcloud",
+    "extensions": [
+      "las"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "LAZ",
+    "long_name": "LASzip-compressed LAS",
+    "kind": "pointcloud",
+    "extensions": [
+      "laz"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "COPC",
+    "long_name": "Cloud Optimized Point Cloud",
+    "kind": "pointcloud",
+    "extensions": [
+      "copc.laz"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "EPT",
+    "long_name": "Entwine Point Tile",
+    "kind": "pointcloud",
+    "extensions": [
+      "json"
+    ],
+    "read": true,
+    "write": false
+  },
+  {
+    "name": "PLY",
+    "long_name": "Polygon File Format",
+    "kind": "pointcloud",
+    "extensions": [
+      "ply"
+    ],
+    "read": true,
+    "write": true
+  },
+  {
+    "name": "E57",
+    "long_name": "ASTM E57 3D imaging data",
+    "kind": "pointcloud",
+    "extensions": [
+      "e57"
+    ],
+    "read": true,
+    "write": true
+  }
+]

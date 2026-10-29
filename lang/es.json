@@ -43,7 +43,6 @@
   "EPSG:4326, WKT, PROJ string or a file": "EPSG:4326, WKT, cadena PROJ o un archivo",
   "Coordinates": "Coordenadas",
   "to transform (with --to): x y [x y …]": "a transformar (con --to): x y [x y …]",
-  "Each file becomes input A. In 'together' mode the files become A, B, C… in name order. Extra fixed inputs can be added under --input (B=path).": "Cada archivo pasa a ser la entrada A. En modo «juntos», los archivos pasan a ser A, B, C… por orden de nombre. Se pueden añadir entradas fijas adicionales en --input (B=ruta).",
   "Search options…": "Buscar opciones…",
   "Reset options": "Restablecer opciones",
   "No options available (terrio not found?).": "No hay opciones disponibles (¿no se encontró terrio?).",
@@ -158,6 +157,11 @@
   "Done": "Listo",
   "Failed": "Fallido",
   "Skipped": "Omitido",
-  "Cancelled": "Cancelado"
+  "Cancelled": "Cancelado",
+  "{} needs {} values ({}).": "{} necesita {} valores ({}).",
+  "In 'together' mode the files are added as --input A, B, C…; remove the --input option, or use 'Each file separately'.": "En el modo «juntos» los archivos se añaden como --input A, B, C…; elimine la opción --input o use «Cada archivo por separado».",
+  "Settings could not be saved: {}": "No se pudo guardar la configuración: {}",
+  "Settings could not be read ({}). Starting with defaults.": "No se pudo leer la configuración ({}). Se usan los valores predeterminados.",
+  "Each file becomes input A. In 'together' mode the files become A, B, C… in name order, and the --input option is unavailable. Extra fixed inputs can be added under --input (B=path) when processing each file separately.": "Cada archivo pasa a ser la entrada A. En modo «juntos», los archivos pasan a ser A, B, C… por orden de nombre y la opción --input no está disponible. Se pueden añadir entradas fijas adicionales en --input (B=ruta) al procesar cada archivo por separado."
  }
 }

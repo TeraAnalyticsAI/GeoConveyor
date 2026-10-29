@@ -5,13 +5,12 @@
 
 use crate::help::{command, LaunchProblem};
 use crate::i18n::{t, tf};
-use crate::jobs::{path_size, shell_join, Job, Status};
+use crate::jobs::{output_exists, output_size, remove_output, remove_path, shell_join, Job, Status};
 use std::io::Read;
-use std::path::Path;
-use std::process::Stdio;
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 pub enum Event {
@@ -32,11 +31,34 @@ impl RunHandle {
     }
 }
 
-pub fn remove_path(p: &Path) {
-    if p.is_dir() {
-        let _ = std::fs::remove_dir_all(p);
-    } else if p.exists() {
-        let _ = std::fs::remove_file(p);
+/// Live terrio processes, so quitting the GUI can terminate them instead of leaving them
+/// running after the window closes.
+type ChildSlot = Arc<Mutex<Option<Child>>>;
+
+fn live_children() -> &'static Mutex<Vec<ChildSlot>> {
+    static LIVE: OnceLock<Mutex<Vec<ChildSlot>>> = OnceLock::new();
+    LIVE.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn register_child(child: Child) -> ChildSlot {
+    let slot = Arc::new(Mutex::new(Some(child)));
+    live_children().lock().unwrap().push(slot.clone());
+    slot
+}
+
+fn unregister_child(slot: &ChildSlot) {
+    live_children().lock().unwrap().retain(|s| !Arc::ptr_eq(s, slot));
+}
+
+/// Terminate every terrio process started by this app. Called when the window closes.
+pub fn kill_all() {
+    let slots: Vec<ChildSlot> = live_children().lock().unwrap().clone();
+    for slot in slots {
+        if let Ok(mut guard) = slot.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
     }
 }
 
@@ -52,8 +74,7 @@ pub fn start(exe: String, jobs: Vec<Job>, parallel: usize, skip_existing: bool, 
         let workers = parallel.max(1).min(jobs.len().max(1));
         let mut threads = vec![];
         for _ in 0..workers {
-            let (jobs, next, cancel, exe, tx, wake) =
-                (jobs.clone(), next.clone(), cancel.clone(), exe.clone(), tx.clone(), wake.clone());
+            let (jobs, next, cancel, exe, tx, wake) = (jobs.clone(), next.clone(), cancel.clone(), exe.clone(), tx.clone(), wake.clone());
             threads.push(std::thread::spawn(move || loop {
                 if cancel.load(Ordering::SeqCst) {
                     break;
@@ -86,14 +107,22 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
     let mut out = String::new();
     let tmp = job.tmp();
     if let Some(dst) = &job.dst {
-        if skip_existing && dst.exists() {
-            finish(Status::Skipped, t("output exists"), 0.0, path_size(dst));
+        if skip_existing && output_exists(dst) {
+            finish(Status::Skipped, t("output exists"), 0.0, output_size(dst));
             return;
         }
         if let Some(p) = dst.parent() {
             let _ = std::fs::create_dir_all(p);
         }
         if job.direct {
+            if !skip_existing {
+                // EPT datasets and splitter tile sets are written straight to their final names.
+                // Clear the previous result first so stale tiles cannot mix with the new run.
+                remove_output(dst);
+                if let Some(p) = dst.parent() {
+                    let _ = std::fs::create_dir_all(p);
+                }
+            }
             out = dst.to_string_lossy().into_owned();
         } else {
             let t = tmp.clone().unwrap();
@@ -131,20 +160,40 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
         let b = buf.clone();
         readers.push(std::thread::spawn(move || pump(&mut se, &b)));
     }
+    let slot = register_child(child);
     let mut killed = false;
     let code = loop {
-        match child.try_wait() {
-            Ok(Some(st)) => break st.code(),
-            Ok(None) => {
-                if cancel.load(Ordering::SeqCst) && !killed {
-                    let _ = child.kill();
-                    killed = true;
-                }
-                std::thread::sleep(Duration::from_millis(30));
+        let waiting = {
+            let mut guard = slot.lock().unwrap();
+            match guard.as_mut() {
+                Some(child) => match child.try_wait() {
+                    Ok(Some(st)) => Some(Ok(st.code())),
+                    Ok(None) => {
+                        if cancel.load(Ordering::SeqCst) && !killed {
+                            let _ = child.kill();
+                            killed = true;
+                        }
+                        None
+                    }
+                    Err(e) => Some(Err(e)),
+                },
+                None => Some(Ok(None)),
             }
-            Err(_) => break None,
+        };
+        match waiting {
+            Some(Ok(code)) => break code,
+            Some(Err(_)) => break None,
+            None => std::thread::sleep(Duration::from_millis(20)),
         }
     };
+    let child = slot.lock().unwrap().take();
+    if let Some(mut child) = child {
+        if killed || code.is_none() {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+    unregister_child(&slot);
     for r in readers {
         let _ = r.join();
     }
@@ -158,7 +207,11 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
         if let (Some(dst), false) = (&job.dst, job.direct) {
             let tp = tmp.clone().unwrap();
             if tp.exists() {
-                remove_path(dst);
+                // std::fs::rename replaces an existing file atomically on Unix and Windows.
+                // Only a directory destination needs removing first.
+                if dst.is_dir() {
+                    remove_path(dst);
+                }
                 if let Err(e) = std::fs::rename(&tp, dst) {
                     ok = false;
                     text = e.to_string();
@@ -172,7 +225,7 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
     let (status, size_out) = if killed && !ok {
         (Status::Cancelled, 0)
     } else if ok {
-        let size = job.dst.as_ref().map(|d| path_size(d)).unwrap_or(0);
+        let size = job.output_size();
         if job.dst.is_none() {
             message = text.lines().next().unwrap_or("").chars().take(120).collect();
         }
@@ -185,8 +238,12 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
         };
         (Status::Failed, 0)
     };
-    if status != Status::Done && job.dst.is_some() && !job.direct {
-        remove_path(tmp.as_ref().unwrap());
+    if status != Status::Done && job.dst.is_some() {
+        if job.direct {
+            job.remove_output();
+        } else {
+            remove_path(tmp.as_ref().unwrap());
+        }
     }
     if !text.is_empty() {
         send(tx, wake, Event::Log(text));
@@ -195,12 +252,19 @@ fn run_job(exe: &str, i: usize, job: &Job, skip_existing: bool, cancel: &Arc<Ato
 }
 
 fn pump<R: Read>(r: &mut R, buf: &Arc<Mutex<Vec<u8>>>) {
+    // Keep the tail only: a runaway process must not grow the GUI's memory without bound.
+    const MAX: usize = 1 << 20;
     let mut chunk = [0u8; 8192];
     while let Ok(n) = r.read(&mut chunk) {
         if n == 0 {
             break;
         }
-        buf.lock().unwrap().extend_from_slice(&chunk[..n]);
+        let mut b = buf.lock().unwrap();
+        b.extend_from_slice(&chunk[..n]);
+        if b.len() > MAX {
+            let cut = b.len() - MAX;
+            b.drain(..cut);
+        }
     }
 }
 
@@ -227,5 +291,32 @@ pub fn apply_event(jobs: &mut [Job], started: &mut [Option<Instant>], ev: &Event
             }
         }
         Event::Log(_) => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn kill_all_stops_a_running_child() {
+        let job =
+            Job { label: "sleep".into(), pre: vec!["30".into()], dst: None, direct: false, size_in: 0, status: Status::Pending, seconds: 0.0, size_out: 0, message: String::new() };
+        let h = start("sleep".into(), vec![job], 1, false, Arc::new(|| {}));
+        // Wait until the child is registered, so kill_all cannot race the worker thread.
+        let t0 = Instant::now();
+        while live_children().lock().unwrap().is_empty() && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        kill_all();
+        let mut done = false;
+        while let Ok(ev) = h.rx.recv_timeout(Duration::from_secs(5)) {
+            if matches!(ev, Event::AllDone) {
+                done = true;
+                break;
+            }
+        }
+        assert!(done, "the runner did not finish after kill_all");
     }
 }

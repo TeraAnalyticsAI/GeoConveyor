@@ -4,8 +4,7 @@
 use eframe::egui;
 use eframe::egui::{
     text::{LayoutJob, TextFormat},
-    vec2, Color32, CornerRadius, FontFamily, FontId, Margin, Response, RichText, Sense, Stroke, StrokeKind, Style, TextStyle,
-    Theme, Ui, Visuals,
+    vec2, Color32, CornerRadius, FontFamily, FontId, Margin, Response, RichText, Sense, Stroke, StrokeKind, Style, TextStyle, Theme, Ui, Visuals,
 };
 
 #[derive(Clone, Copy)]
@@ -105,12 +104,7 @@ fn style_for(theme: Theme) -> Style {
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, c.text);
     v.widgets.noninteractive.corner_radius = r8;
 
-    for (w, lift) in [
-        (&mut v.widgets.inactive, 0),
-        (&mut v.widgets.hovered, 1),
-        (&mut v.widgets.active, 2),
-        (&mut v.widgets.open, 1),
-    ] {
+    for (w, lift) in [(&mut v.widgets.inactive, 0), (&mut v.widgets.hovered, 1), (&mut v.widgets.active, 2), (&mut v.widgets.open, 1)] {
         w.corner_radius = r8;
         w.weak_bg_fill = if dark { rgb(0x2a + lift * 6, 0x30 + lift * 6, 0x3b + lift * 6) } else { rgb(0xf4 - lift * 7, 0xf6 - lift * 6, 0xfa - lift * 5) };
         w.bg_fill = c.input;
@@ -180,13 +174,7 @@ pub fn pill_button(ui: &mut Ui, text: &str, icon: Icon) -> Response {
     let fg = if on { c.pill_text } else { c.muted };
     let fill = if on { c.pill } else { c.card };
     let label = if icon == Icon::None { text.to_string() } else { format!("      {text}") };
-    let r = ui.add(
-        egui::Button::new(RichText::new(label).color(fg))
-            .fill(fill)
-            .stroke(Stroke::NONE)
-            .corner_radius(CornerRadius::same(15))
-            .min_size(vec2(0.0, 30.0)),
-    );
+    let r = ui.add(egui::Button::new(RichText::new(label).color(fg)).fill(fill).stroke(Stroke::NONE).corner_radius(CornerRadius::same(15)).min_size(vec2(0.0, 30.0)));
     if icon != Icon::None {
         let ir = egui::Rect::from_min_size(r.rect.left_top() + vec2(10.0, 0.0), vec2(18.0, r.rect.height()));
         paint_icon(ui, icon, ir, fg);
@@ -211,26 +199,14 @@ pub fn go_button(ui: &mut Ui, text: &str) -> Response {
 pub fn tab_pill(ui: &mut Ui, text: &str, selected: bool) -> Response {
     let c = p(ui);
     let fill = if selected { c.accent } else { c.pill };
-    ui.add(
-        egui::Button::new(RichText::new(text).color(c.pill_text))
-            .fill(fill)
-            .stroke(Stroke::NONE)
-            .corner_radius(CornerRadius::same(16))
-            .min_size(vec2(0.0, 32.0)),
-    )
+    ui.add(egui::Button::new(RichText::new(text).color(c.pill_text)).fill(fill).stroke(Stroke::NONE).corner_radius(CornerRadius::same(16)).min_size(vec2(0.0, 32.0)))
 }
 
 /// A choice among a few: the chosen one is an accent pill, the rest plain text.
 pub fn choice(ui: &mut Ui, text: &str, selected: bool) -> Response {
     let c = p(ui);
     if selected {
-        ui.add(
-            egui::Button::new(RichText::new(text).color(Color32::WHITE))
-                .fill(c.accent)
-                .stroke(Stroke::NONE)
-                .corner_radius(CornerRadius::same(14))
-                .min_size(vec2(0.0, 28.0)),
-        )
+        ui.add(egui::Button::new(RichText::new(text).color(Color32::WHITE)).fill(c.accent).stroke(Stroke::NONE).corner_radius(CornerRadius::same(14)).min_size(vec2(0.0, 28.0)))
     } else {
         ui.add(egui::Button::new(RichText::new(text).color(c.text)).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).min_size(vec2(0.0, 28.0)))
     }
@@ -256,7 +232,6 @@ pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
 
 /// A rounded status badge with a coloured dot.
 pub fn status_pill(ui: &mut Ui, text: &str, dot: Color32) {
-    let c = p(ui);
     let fill = if ui.visuals().dark_mode { rgb(0x3a, 0x42, 0x50) } else { rgb(0x7b, 0x84, 0x95) };
     egui::Frame::new().fill(fill).corner_radius(CornerRadius::same(11)).inner_margin(Margin::symmetric(9, 0)).show(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
@@ -266,16 +241,15 @@ pub fn status_pill(ui: &mut Ui, text: &str, dot: Color32) {
             ui.painter().circle_filled(r.center(), 4.5, dot);
         });
     });
-    let _ = c;
 }
 
 /// The command preview: a dark rounded box with the command syntax-coloured.
-pub fn command_box(ui: &mut Ui, cmd: &str) {
+pub fn command_box(ui: &mut Ui, cmd: &[String]) {
     let c = p(ui);
     let font = FontId::new(14.0, FontFamily::Monospace);
     let mut job = LayoutJob::default();
-    job.wrap.max_width = f32::INFINITY;
-    for (i, tok) in cmd.split(' ').enumerate() {
+    job.wrap.max_width = ui.available_width() - 24.0;
+    for (i, tok) in cmd.iter().enumerate() {
         let color = if i < 2 {
             c.code_cmd
         } else if tok.starts_with('-') {
@@ -288,7 +262,6 @@ pub fn command_box(ui: &mut Ui, cmd: &str) {
         job.append(tok, 0.0, TextFormat { font_id: font.clone(), color, ..Default::default() });
         job.append(" ", 0.0, TextFormat { font_id: font.clone(), color: c.code_text, ..Default::default() });
     }
-    job.wrap.max_width = ui.available_width() - 24.0;
     egui::Frame::new().fill(c.code_bg).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 7)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.add(egui::Label::new(job).selectable(true));
@@ -309,11 +282,7 @@ pub fn check(ui: &mut Ui, on: &mut bool, text: &str) -> Response {
         let pt = ui.painter();
         if *on {
             pt.rect_filled(rect, CornerRadius::same(5), c.accent);
-            let (a, b, d) = (
-                rect.left_top() + vec2(4.5, 9.5),
-                rect.left_top() + vec2(7.8, 12.8),
-                rect.left_top() + vec2(13.5, 5.5),
-            );
+            let (a, b, d) = (rect.left_top() + vec2(4.5, 9.5), rect.left_top() + vec2(7.8, 12.8), rect.left_top() + vec2(13.5, 5.5));
             pt.line_segment([a, b], Stroke::new(2.0, Color32::WHITE));
             pt.line_segment([b, d], Stroke::new(2.0, Color32::WHITE));
         } else {

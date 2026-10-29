@@ -41,8 +41,22 @@ struct Case<'a> {
 }
 
 fn case<'a>(key: &'a str, dir: &'a str, patterns: &'a str) -> Case<'a> {
-    Case { key, dir, patterns: Some(patterns), opts: vec![], together: false, sub: None, ext: None, suffix: None,
-           name: None, dem: None, color: None, crs: None, coords: None, input_type: None }
+    Case {
+        key,
+        dir,
+        patterns: Some(patterns),
+        opts: vec![],
+        together: false,
+        sub: None,
+        ext: None,
+        suffix: None,
+        name: None,
+        dem: None,
+        color: None,
+        crs: None,
+        coords: None,
+        input_type: None,
+    }
 }
 
 fn t(s: &str) -> Value {
@@ -69,46 +83,74 @@ fn run(be: &mut Backend, name: &str, c: Case) -> Result<Outcome, String> {
     for (k, v) in c.opts {
         assert!(tab.form_mut().unwrap().set(k, v), "no such option {k}");
     }
-    if let Some(p) = c.patterns { tab.patterns = p.into(); }
+    if let Some(p) = c.patterns {
+        tab.patterns = p.into();
+    }
     tab.together = c.together;
-    if let Some(e) = c.ext { tab.ext = e.into(); }
-    if let Some(e) = c.suffix { tab.suffix = e.into(); }
-    if let Some(e) = c.name { tab.name = e.into(); }
-    if let Some(d) = c.dem { tab.dem_mode = d.into(); }
-    if let Some(d) = c.color { tab.color = d; }
-    if let Some(d) = c.crs { tab.crs = d.into(); }
-    if let Some(d) = c.coords { tab.coords = d.into(); }
+    if let Some(e) = c.ext {
+        tab.ext = e.into();
+    }
+    if let Some(e) = c.suffix {
+        tab.suffix = e.into();
+    }
+    if let Some(e) = c.name {
+        tab.name = e.into();
+    }
+    if let Some(d) = c.dem {
+        tab.dem_mode = d.into();
+    }
+    if let Some(d) = c.color {
+        tab.color = d;
+    }
+    if let Some(d) = c.crs {
+        tab.crs = d.into();
+    }
+    if let Some(d) = c.coords {
+        tab.coords = d.into();
+    }
     tab.sync(be);
 
     let out = out_dir(name);
     let g = Globals {
         in_dir: if c.dir.is_empty() { String::new() } else { data().join(c.dir).to_string_lossy().into() },
         out_dir: out.to_string_lossy().into(),
-        recursive: true, keep_tree: true, parallel: 2,
+        recursive: true,
+        keep_tree: true,
+        parallel: 2,
     };
     tab.validate(&g, &be.exe)?;
-    let files = if tab.uses_files() {
-        scan_files(&g.in_dir, &tab.patterns, true, if tab.needs_out() { &g.out_dir } else { "" })
-    } else { vec![] };
+    let files = if tab.uses_files() { scan_files(&g.in_dir, &tab.patterns, true, if tab.needs_out() { &g.out_dir } else { "" }) } else { vec![] };
     let mut jobs = make_jobs(&tab, &g, &files, false)?;
     let handle = start(be.exe.clone(), jobs.clone(), 2, !tab.overwrite, Arc::new(|| {}));
     let mut started = vec![None::<Instant>; jobs.len()];
     let mut log = String::new();
     while let Ok(ev) = handle.rx.recv() {
-        if let Event::Log(l) = &ev { log.push_str(l); log.push('\n'); }
+        if let Event::Log(l) = &ev {
+            log.push_str(l);
+            log.push('\n');
+        }
         apply_event(&mut jobs, &mut started, &ev);
-        if matches!(ev, Event::AllDone) { break; }
+        if matches!(ev, Event::AllDone) {
+            break;
+        }
     }
-    let mut outputs: Vec<String> = walkdir::WalkDir::new(&out).into_iter().filter_map(Result::ok)
+    let mut outputs: Vec<String> = walkdir::WalkDir::new(&out)
+        .into_iter()
+        .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
-        .map(|e| e.path().strip_prefix(&out).unwrap().to_string_lossy().into()).collect();
+        .map(|e| e.path().strip_prefix(&out).unwrap().to_string_lossy().into())
+        .collect();
     outputs.sort();
     Ok(Outcome { jobs, log, outputs })
 }
 
 fn backend() -> Option<Backend> {
     let exe = find_terrio("");
-    if exe.is_empty() { eprintln!("terrio not installed: skipping"); return None; }
+    if exe.is_empty() {
+        assert!(std::env::var_os("CI").is_none(), "terrio is missing but CI must run the engine tests");
+        eprintln!("terrio not installed: skipping");
+        return None;
+    }
     Some(Backend::new(&exe))
 }
 
@@ -128,11 +170,14 @@ fn every_command_builds_and_runs() {
 
     let mut cases: Vec<(&str, Case)> = vec![];
     {
-        let mut c = case("info", "rast", "*.tif"); c.opts = vec![("--json", Value::Flag(true))];
+        let mut c = case("info", "rast", "*.tif");
+        c.opts = vec![("--json", Value::Flag(true))];
         cases.push(("info", c));
     }
-    {   // defaults make this a COG with DEFLATE
-        let mut c = case("convert", "rast", "*.tif"); c.opts = vec![];
+    {
+        // defaults make this a COG with DEFLATE
+        let mut c = case("convert", "rast", "*.tif");
+        c.opts = vec![];
         cases.push(("convert", c));
     }
     {
@@ -146,17 +191,22 @@ fn every_command_builds_and_runs() {
         cases.push(("warp_each", c));
     }
     {
-        let mut c = case("warp", "rast", "tile_*.tif"); c.together = true; c.name = Some("warped_all");
+        let mut c = case("warp", "rast", "tile_*.tif");
+        c.together = true;
+        c.name = Some("warped_all");
         c.opts = vec![("--t-srs", t("EPSG:4326"))];
         cases.push(("warp_together", c));
     }
     {
-        let mut c = case("mosaic", "dem", "*.tif"); c.name = Some("dem_mosaic");
+        let mut c = case("mosaic", "dem", "*.tif");
+        c.name = Some("dem_mosaic");
         c.opts = vec![("--resolution", t("highest"))];
         cases.push(("mosaic", c));
     }
     {
-        let mut c = case("mosaic", "dem", "*.tif"); c.name = Some("dem_virtual"); c.ext = Some(".vrt");
+        let mut c = case("mosaic", "dem", "*.tif");
+        c.name = Some("dem_virtual");
+        c.ext = Some(".vrt");
         cases.push(("mosaic_vrt", c));
     }
     {
@@ -164,21 +214,100 @@ fn every_command_builds_and_runs() {
         c.opts = vec![("--tr", Value::Multi(vec!["0.0001".into(), "0.0001".into()])), ("--burn", t("1"))];
         cases.push(("rasterize", c));
     }
-    cases.push(("polygonize", { let mut c = case("polygonize", "rast", "cover.tif"); c.opts = vec![("--8", Value::Flag(true))]; c }));
-    cases.push(("dem_hillshade", { let mut c = case("dem", "dem", "*.tif"); c.opts = vec![("--multidirectional", Value::Flag(true))]; c.dem = Some("hillshade"); c.suffix = Some("_hillshade"); c }));
-    cases.push(("dem_slope", { let mut c = case("dem", "dem", "dem_a.tif"); c.opts = vec![("--percent", Value::Flag(true))]; c.dem = Some("slope"); c.suffix = Some("_slope"); c }));
-    cases.push(("dem_color", { let mut c = case("dem", "dem", "dem_a.tif"); c.opts = vec![("--alpha", Value::Flag(true))]; c.dem = Some("color-relief"); c.color = Some(colors.clone()); c.suffix = Some("_color"); c }));
-    cases.push(("calc_each", { let mut c = case("calc", "dem", "*.tif"); c.opts = vec![("--calc", t("A * 2")), ("--type", t("Float32"))]; c }));
-    cases.push(("calc_together", { let mut c = case("calc", "dem", "*.tif"); c.opts = vec![("--calc", t("A + B")), ("--type", t("Float32"))]; c.together = true; c.name = Some("sum"); c }));
-    cases.push(("proximity", { let mut c = case("proximity", "rast", "cover.tif"); c.opts = vec![("--values", t("1")), ("--distunits", t("GEO"))]; c }));
-    cases.push(("sieve", { let mut c = case("sieve", "rast", "cover.tif"); c.opts = vec![("--st", t("5"))]; c }));
-    cases.push(("grid", { let mut c = case("grid", "pc", "*.las"); c.opts = vec![("--tr", t("5")), ("--stat", t("max"))]; c }));
-    cases.push(("filter_smrf", { let mut c = case("filter", "pc", "*.las"); c.sub = Some("smrf"); c }));
-    cases.push(("filter_range", { let mut c = case("filter", "pc", "*.las"); c.sub = Some("range"); c.opts = vec![("--limits", t("Classification[2:3]"))]; c }));
-    cases.push(("filter_expression", { let mut c = case("filter", "pc", "cloud_a.las"); c.sub = Some("expression"); c.opts = vec![("--expression", t("Z > 10"))]; c.ext = Some(".copc.laz"); c }));
-    cases.push(("filter_merge", { let mut c = case("filter", "pc", "*.las"); c.sub = Some("merge"); c.name = Some("both"); c.ext = Some(".copc.laz"); c }));
-    cases.push(("filter_splitter", { let mut c = case("filter", "pc", "cloud_a.las"); c.sub = Some("splitter"); c.opts = vec![("--length", t("50"))]; c.suffix = Some("_tile#"); c.ext = Some(".copc.laz"); c }));
-    cases.push(("crs", { let mut c = case("crs", "", ""); c.opts = vec![("--to", t("EPSG:32616"))]; c.crs = Some("EPSG:4326"); c.coords = Some("-86.9 20.8"); c }));
+    cases.push(("polygonize", {
+        let mut c = case("polygonize", "rast", "cover.tif");
+        c.opts = vec![("--8", Value::Flag(true))];
+        c
+    }));
+    cases.push(("dem_hillshade", {
+        let mut c = case("dem", "dem", "*.tif");
+        c.opts = vec![("--multidirectional", Value::Flag(true))];
+        c.dem = Some("hillshade");
+        c.suffix = Some("_hillshade");
+        c
+    }));
+    cases.push(("dem_slope", {
+        let mut c = case("dem", "dem", "dem_a.tif");
+        c.opts = vec![("--percent", Value::Flag(true))];
+        c.dem = Some("slope");
+        c.suffix = Some("_slope");
+        c
+    }));
+    cases.push(("dem_color", {
+        let mut c = case("dem", "dem", "dem_a.tif");
+        c.opts = vec![("--alpha", Value::Flag(true))];
+        c.dem = Some("color-relief");
+        c.color = Some(colors.clone());
+        c.suffix = Some("_color");
+        c
+    }));
+    cases.push(("calc_each", {
+        let mut c = case("calc", "dem", "*.tif");
+        c.opts = vec![("--calc", t("A * 2")), ("--type", t("Float32"))];
+        c
+    }));
+    cases.push(("calc_together", {
+        let mut c = case("calc", "dem", "*.tif");
+        c.opts = vec![("--calc", t("A + B")), ("--type", t("Float32"))];
+        c.together = true;
+        c.name = Some("sum");
+        c
+    }));
+    cases.push(("proximity", {
+        let mut c = case("proximity", "rast", "cover.tif");
+        c.opts = vec![("--values", t("1")), ("--distunits", t("GEO"))];
+        c
+    }));
+    cases.push(("sieve", {
+        let mut c = case("sieve", "rast", "cover.tif");
+        c.opts = vec![("--st", t("5"))];
+        c
+    }));
+    cases.push(("grid", {
+        let mut c = case("grid", "pc", "*.las");
+        c.opts = vec![("--tr", t("5")), ("--stat", t("max"))];
+        c
+    }));
+    cases.push(("filter_smrf", {
+        let mut c = case("filter", "pc", "*.las");
+        c.sub = Some("smrf");
+        c
+    }));
+    cases.push(("filter_range", {
+        let mut c = case("filter", "pc", "*.las");
+        c.sub = Some("range");
+        c.opts = vec![("--limits", t("Classification[2:3]"))];
+        c
+    }));
+    cases.push(("filter_expression", {
+        let mut c = case("filter", "pc", "cloud_a.las");
+        c.sub = Some("expression");
+        c.opts = vec![("--expression", t("Z > 10"))];
+        c.ext = Some(".copc.laz");
+        c
+    }));
+    cases.push(("filter_merge", {
+        let mut c = case("filter", "pc", "*.las");
+        c.sub = Some("merge");
+        c.name = Some("both");
+        c.ext = Some(".copc.laz");
+        c
+    }));
+    cases.push(("filter_splitter", {
+        let mut c = case("filter", "pc", "cloud_a.las");
+        c.sub = Some("splitter");
+        c.opts = vec![("--length", t("50"))];
+        c.suffix = Some("_tile#");
+        c.ext = Some(".copc.laz");
+        c
+    }));
+    cases.push(("crs", {
+        let mut c = case("crs", "", "");
+        c.opts = vec![("--to", t("EPSG:32616"))];
+        c.crs = Some("EPSG:4326");
+        c.coords = Some("-86.9 20.8");
+        c
+    }));
     cases.push(("formats", case("formats", "", "")));
 
     for (name, c) in cases {
@@ -236,7 +365,8 @@ fn skip_vs_overwrite_and_input_protection() {
     let mut tab = TabState::new(spec);
     tab.rebuild(&mut be);
     tab.patterns = "cover.tif".into();
-    let g = Globals { in_dir: data().join("rast").to_string_lossy().into(), out_dir: out_dir("skip").parent().unwrap().join("skip").to_string_lossy().into(), ..Globals::default() };
+    let g =
+        Globals { in_dir: data().join("rast").to_string_lossy().into(), out_dir: out_dir("skip").parent().unwrap().join("skip").to_string_lossy().into(), ..Globals::default() };
     // out_dir() wiped it; recreate the output, then run again
     let first = make_jobs(&tab, &g, &scan_files(&g.in_dir, &tab.patterns, true, ""), false).unwrap();
     std::fs::create_dir_all(first[0].dst.as_ref().unwrap().parent().unwrap()).unwrap();
@@ -244,7 +374,12 @@ fn skip_vs_overwrite_and_input_protection() {
     let mut jobs = first.clone();
     let h = start(be.exe.clone(), jobs.clone(), 1, true, Arc::new(|| {}));
     let mut st = vec![None; jobs.len()];
-    while let Ok(ev) = h.rx.recv() { apply_event(&mut jobs, &mut st, &ev); if matches!(ev, Event::AllDone) { break; } }
+    while let Ok(ev) = h.rx.recv() {
+        apply_event(&mut jobs, &mut st, &ev);
+        if matches!(ev, Event::AllDone) {
+            break;
+        }
+    }
     assert_eq!(jobs[0].status, Status::Skipped);
     assert_eq!(std::fs::read(first[0].dst.as_ref().unwrap()).unwrap(), b"x");
 
@@ -255,6 +390,45 @@ fn skip_vs_overwrite_and_input_protection() {
     let g2 = Globals { in_dir: data().join("rast").to_string_lossy().into(), out_dir: data().join("rast").to_string_lossy().into(), ..Globals::default() };
     let err = make_jobs(&tab2, &g2, &[data().join("rast/cover.tif")], false).err().unwrap();
     assert!(err.contains("overwrite the input"), "{err}");
+}
+
+#[test]
+fn splitter_outputs_can_be_skipped_and_report_their_size() {
+    let Some(mut be) = backend() else { return };
+    let spec = specs().into_iter().find(|s| s.key == "filter").unwrap();
+    let mut tab = TabState::new(spec);
+    tab.rebuild(&mut be);
+    tab.sub = "splitter".into();
+    tab.ensure_form(&mut be);
+    assert!(tab.form_mut().unwrap().set("--length", t("50")));
+    tab.suffix = "_tile#".into();
+    tab.ext = ".copc.laz".into();
+    let out = out_dir("splitter_skip");
+    let g = Globals { in_dir: data().join("pc").to_string_lossy().into(), out_dir: out.to_string_lossy().into(), parallel: 1, ..Globals::default() };
+    let files = scan_files(&g.in_dir, "cloud_a.las", true, "");
+    let mut jobs = make_jobs(&tab, &g, &files, false).unwrap();
+    let h = start(be.exe.clone(), jobs.clone(), 1, false, Arc::new(|| {}));
+    let mut st = vec![None; jobs.len()];
+    while let Ok(ev) = h.rx.recv() {
+        apply_event(&mut jobs, &mut st, &ev);
+        if matches!(ev, Event::AllDone) {
+            break;
+        }
+    }
+    assert_eq!(jobs[0].status, Status::Done, "{}", jobs[0].message);
+    assert!(jobs[0].size_out > 0, "splitter tiles should be counted");
+
+    let mut jobs = make_jobs(&tab, &g, &files, false).unwrap();
+    let h = start(be.exe.clone(), jobs.clone(), 1, true, Arc::new(|| {}));
+    let mut st = vec![None; jobs.len()];
+    while let Ok(ev) = h.rx.recv() {
+        apply_event(&mut jobs, &mut st, &ev);
+        if matches!(ev, Event::AllDone) {
+            break;
+        }
+    }
+    assert_eq!(jobs[0].status, Status::Skipped);
+    assert!(jobs[0].size_out > 0, "a skipped splitter should still report its size");
 }
 
 #[test]
@@ -270,11 +444,15 @@ fn cancel_stops_pending_jobs_and_cleans_up() {
     let h = start(be.exe.clone(), jobs.clone(), 1, false, Arc::new(|| {}));
     h.cancel(); // before the first job starts, or right after it
     let mut st = vec![None; jobs.len()];
-    while let Ok(ev) = h.rx.recv() { apply_event(&mut jobs, &mut st, &ev); if matches!(ev, Event::AllDone) { break; } }
+    while let Ok(ev) = h.rx.recv() {
+        apply_event(&mut jobs, &mut st, &ev);
+        if matches!(ev, Event::AllDone) {
+            break;
+        }
+    }
     assert!(jobs.iter().all(|j| j.status.finished()), "{:?}", jobs.iter().map(|j| j.status.name()).collect::<Vec<_>>());
     assert!(jobs.iter().any(|j| j.status == Status::Cancelled));
-    let leftovers: Vec<_> = walkdir::WalkDir::new(&out).into_iter().filter_map(Result::ok)
-        .filter(|e| e.file_name().to_string_lossy().starts_with(".partial-")).collect();
+    let leftovers: Vec<_> = walkdir::WalkDir::new(&out).into_iter().filter_map(Result::ok).filter(|e| e.file_name().to_string_lossy().starts_with(".partial-")).collect();
     assert!(leftovers.is_empty());
 }
 
@@ -328,7 +506,18 @@ fn preview_and_settings_roundtrip() {
     assert_eq!(tab2.ext, ".asc");
     let p2 = preview(&tab2, &g, &be.exe);
     assert!(p2.contains("--co A=1 --co B=2"), "{p2}");
-    assert_eq!(raw, preview(&{ let mut t3 = TabState::new(spec); t3.rebuild(&mut be); t3 }, &g, &be.exe));
+    assert_eq!(
+        raw,
+        preview(
+            &{
+                let mut t3 = TabState::new(spec);
+                t3.rebuild(&mut be);
+                t3
+            },
+            &g,
+            &be.exe
+        )
+    );
 }
 
 #[test]

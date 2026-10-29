@@ -66,7 +66,15 @@ pub fn parse_help(text: &str) -> Help {
         summary.push(lines[i]);
         i += 1;
     }
-    let usage = lines.get(i).copied().unwrap_or("").replace("[OPTIONS]", "");
+    let mut usage = lines.get(i).copied().unwrap_or("").replace("[OPTIONS]", "");
+    // clap wraps long usage lines; join the indented continuation lines before looking for
+    // required options, otherwise a required flag on the second line is missed.
+    let mut u = i + 1;
+    while u < lines.len() && lines[u].starts_with(' ') && !lines[u].trim().is_empty() {
+        usage.push(' ');
+        usage.push_str(lines[u].trim());
+        u += 1;
+    }
     let mut section = String::new();
     let mut cur: Option<usize> = None;
     let mut opts: Vec<Opt> = Vec::new();
@@ -89,11 +97,7 @@ pub fn parse_help(text: &str) -> Help {
         }
         if section.ends_with("ptions") {
             if let Some(c) = r.opt.captures(ln) {
-                let metas = r
-                    .meta
-                    .captures_iter(c.get(3).map_or("", |m| m.as_str()))
-                    .map(|m| m[1].to_string())
-                    .collect();
+                let metas = r.meta.captures_iter(c.get(3).map_or("", |m| m.as_str())).map(|m| m[1].to_string()).collect();
                 opts.push(Opt {
                     long: c[2].to_string(),
                     short: c.get(1).map_or("", |m| m.as_str()).to_string(),
@@ -133,12 +137,7 @@ pub fn parse_help(text: &str) -> Help {
         o.repeatable = low.contains("repeat") || o.metas.iter().any(|m| m.contains('=')) || o.long == "--layer";
     }
     opts.retain(|o| o.long != "--help" && o.long != "--version");
-    Help {
-        summary: summary.iter().filter(|s| !s.trim().is_empty()).cloned().collect::<Vec<_>>().join("\n"),
-        options: opts,
-        notes: notes.join("\n"),
-        subcommands: subs,
-    }
+    Help { summary: summary.iter().filter(|s| !s.trim().is_empty()).cloned().collect::<Vec<_>>().join("\n"), options: opts, notes: notes.join("\n"), subcommands: subs }
 }
 
 // ---------------------------------------------------------------------------
@@ -264,11 +263,7 @@ impl Backend {
     pub fn reload(&mut self, exe: &str) {
         self.exe = exe.to_string();
         self.help.clear();
-        self.problem = if exe.is_empty() {
-            None
-        } else {
-            command(exe).arg("--version").output().ok().and_then(|o| LaunchProblem::from_code(o.status.code()))
-        };
+        self.problem = if exe.is_empty() { None } else { command(exe).arg("--version").output().ok().and_then(|o| LaunchProblem::from_code(o.status.code())) };
         self.formats = if self.problem.is_some() { vec![] } else { get_formats(exe) };
     }
 }
@@ -282,10 +277,15 @@ pub struct Format {
     pub kind: String,
     #[serde(default)]
     pub extensions: Vec<String>,
-    #[serde(default)]
+    #[serde(default, alias = "readable", alias = "can_read")]
     pub read: bool,
-    #[serde(default)]
+    #[serde(default, alias = "writable", alias = "can_write")]
     pub write: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct FormatsDoc {
+    formats: Vec<Format>,
 }
 
 pub fn get_formats(exe: &str) -> Vec<Format> {
@@ -296,15 +296,13 @@ pub fn get_formats(exe: &str) -> Vec<Format> {
     if !ok {
         return vec![];
     }
-    serde_json::from_str(&text).unwrap_or_default()
+    serde_json::from_str(&text).or_else(|_| serde_json::from_str::<FormatsDoc>(&text).map(|d| d.formats)).unwrap_or_default()
 }
 
 pub fn find_terrio(hint: &str) -> String {
     if in_flatpak() {
         // ask the host's login shell, so ~/.local/bin and friends are on PATH
-        let out = Command::new("flatpak-spawn")
-            .args(["--host", "sh", "-lc", "command -v terrio"])
-            .output();
+        let out = Command::new("flatpak-spawn").args(["--host", "sh", "-lc", "command -v terrio"]).output();
         if let Ok(o) = out {
             let p = String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string();
             if o.status.success() && !p.is_empty() {
@@ -373,5 +371,46 @@ mod tests {
         let h = parse_help(t);
         assert!(h.options.iter().find(|o| o.long == "--calc").unwrap().required);
         assert!(!h.options.iter().find(|o| o.long == "--type").unwrap().required);
+    }
+
+    #[test]
+    fn wrapped_usage_lines_are_joined() {
+        let t = "x\n\nUsage: terrio calc [OPTIONS]\n         --calc <EXPR>\n         <OUTPUT>\n\nOptions:\n      --calc <EXPR>  Expression\n      --type <T>  Type\n";
+        let h = parse_help(t);
+        assert!(h.options.iter().find(|o| o.long == "--calc").unwrap().required);
+        assert!(!h.options.iter().find(|o| o.long == "--type").unwrap().required);
+    }
+
+    #[test]
+    fn parses_every_captured_help_fixture() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/help");
+        let mut parsed = 0;
+        for e in std::fs::read_dir(dir).unwrap().filter_map(Result::ok) {
+            let text = std::fs::read_to_string(e.path()).unwrap();
+            if !text.contains("Usage:") {
+                continue; // filter_subs.txt lists subcommands, not a clap help page
+            }
+            let h = parse_help(&text);
+            assert!(!h.summary.trim().is_empty(), "{:?} has no summary", e.path());
+            for o in &h.options {
+                assert!(o.long.starts_with("--"), "{:?} parsed a bad option {:?}", e.path(), o.long);
+            }
+            parsed += 1;
+        }
+        assert!(parsed >= 35, "only {parsed} help fixtures were parsed");
+    }
+
+    #[test]
+    fn formats_json_fixture_and_aliases() {
+        let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/formats.json")).unwrap();
+        let formats: Vec<Format> = serde_json::from_str(&text).unwrap();
+        assert!(formats.len() >= 40, "{} formats", formats.len());
+        assert_eq!(formats[0].name, "GTiff");
+        assert!(formats.iter().any(|f| f.name == "COG" && f.write));
+        assert!(formats.iter().filter(|f| f.write).count() > 30);
+
+        let alias = r#"[{"name":"X","writable":true,"readable":false}]"#;
+        let f: Vec<Format> = serde_json::from_str(alias).unwrap();
+        assert!(f[0].write && !f[0].read);
     }
 }

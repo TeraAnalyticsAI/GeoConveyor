@@ -7,17 +7,35 @@ pub const CLOUD_PAT: &str = "*.las;*.laz";
 pub const ANY_PAT: &str = "*.tif;*.tiff;*.jp2;*.gpkg;*.shp;*.geojson;*.fgb;*.parquet;*.gml;*.kml;*.gpx;*.las;*.laz;*.pmtiles;*.mbtiles;*.nc;*.h5";
 
 pub const EXTENSIONS: &[&str] = &[
-    ".tif", ".vrt", ".gpkg", ".fgb", ".parquet", ".geojson", ".shp", ".csv", ".kml", ".pmtiles",
-    ".mbtiles", ".zarr", ".nc", ".jp2", ".png", ".jpg", ".laz", ".las", ".copc.laz", ".ply", ".e57",
-    "/ept.json", "",
+    ".tif",
+    ".vrt",
+    ".gpkg",
+    ".fgb",
+    ".parquet",
+    ".geojson",
+    ".shp",
+    ".csv",
+    ".kml",
+    ".pmtiles",
+    ".mbtiles",
+    ".zarr",
+    ".nc",
+    ".jp2",
+    ".png",
+    ".jpg",
+    ".laz",
+    ".las",
+    ".copc.laz",
+    ".ply",
+    ".e57",
+    "/ept.json",
+    "",
 ];
 
 pub const DEM_MODES: &[&str] = &["hillshade", "slope", "aspect", "color-relief", "TRI", "TPI", "roughness"];
 
 const COMPRESS: &[&str] = &["NONE", "LZW", "DEFLATE", "ZSTD", "PACKBITS", "JPEG", "WEBP", "PNG", "ZLIB", "GZIP"];
-const RESAMPLING: &[&str] = &[
-    "near", "bilinear", "cubic", "cubicspline", "lanczos", "average", "rms", "mode", "min", "max", "med", "q1", "q3", "sum",
-];
+const RESAMPLING: &[&str] = &["near", "bilinear", "cubic", "cubicspline", "lanczos", "average", "rms", "mode", "min", "max", "med", "q1", "q3", "sum"];
 const DTYPES: &[&str] = &["Byte", "Int8", "UInt16", "Int16", "UInt32", "Int32", "UInt64", "Int64", "Float32", "Float64"];
 
 /// Value suggestions for options whose flag name alone identifies them.
@@ -39,10 +57,9 @@ pub fn choices_for(cmd_key: &str, long: &str) -> Vec<&'static str> {
         "--alg" => vec!["Horn", "ZevenbergenThorne", "Riley", "Wilson"],
         "--extent" => vec!["ignore", "fail", "union", "intersect"],
         "--distunits" => vec!["PIXEL", "GEO"],
-        "--nlt" => vec![
-            "PROMOTE_TO_MULTI", "POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING",
-            "MULTIPOLYGON", "GEOMETRYCOLLECTION", "GEOMETRY", "CONVERT_TO_LINEAR",
-        ],
+        "--nlt" => {
+            vec!["PROMOTE_TO_MULTI", "POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION", "GEOMETRY", "CONVERT_TO_LINEAR"]
+        }
         "--ply-encoding" => vec!["ascii", "binary_little_endian", "binary_big_endian"],
         "--ept-data-type" => vec!["laszip", "binary", "zstandard"],
         "--stat" => vec!["mean", "min", "max", "idw", "count", "stdev", "all"],
@@ -97,10 +114,7 @@ pub struct Spec {
 }
 
 const fn spec(key: &'static str, title: &'static str, kind: Kind, patterns: &'static str, ext: &'static str, suffix: &'static str) -> Spec {
-    Spec {
-        key, title, kind, patterns, ext, suffix,
-        together: Together::No, fmt_kinds: &[], defaults: &[], subs: false, typed: false, out_name: "result",
-    }
+    Spec { key, title, kind, patterns, ext, suffix, together: Together::No, fmt_kinds: &[], defaults: &[], subs: false, typed: false, out_name: "result" }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +128,9 @@ pub enum InputType {
     PointCloud,
     All,
 }
+
+/// (file patterns, output extension, option defaults) for one input type.
+pub type StartingPoint = (&'static str, &'static str, &'static [(&'static str, &'static str)]);
 
 impl InputType {
     pub const ALL: [InputType; 4] = [InputType::Image, InputType::Vector, InputType::PointCloud, InputType::All];
@@ -138,7 +155,7 @@ impl InputType {
     }
 
     /// Starting values for this type: file patterns, output extension, option defaults.
-    pub fn starting_point(&self) -> Option<(&'static str, &'static str, &'static [(&'static str, &'static str)])> {
+    pub fn starting_point(&self) -> Option<StartingPoint> {
         match self {
             InputType::Image => Some((RASTER_PAT, ".tif", &[("--format", "COG"), ("--compress", "DEFLATE"), ("--tile-size", "512")])),
             InputType::Vector => Some((VECTOR_PAT, ".gpkg", &[("--format", "GPKG")])),
@@ -180,23 +197,22 @@ pub fn specs() -> Vec<Spec> {
     const R: &[&str] = &["raster"];
     vec![
         spec("info", "Info", Kind::Info, ANY_PAT, "", ""),
-        Spec { defaults: &[("--format", "COG"), ("--compress", "DEFLATE"), ("--tile-size", "512")], typed: true,
-               ..spec("convert", "Convert", Kind::Io, RASTER_PAT, ".tif", "_converted") },
+        Spec {
+            defaults: &[("--format", "COG"), ("--compress", "DEFLATE"), ("--tile-size", "512")],
+            typed: true,
+            ..spec("convert", "Convert", Kind::Io, RASTER_PAT, ".tif", "_converted")
+        },
         Spec { fmt_kinds: R, ..spec("translate", "Translate", Kind::Io, RASTER_PAT, ".tif", "_translated") },
-        Spec { together: Together::Optional, fmt_kinds: R, out_name: "warped",
-               ..spec("warp", "Warp", Kind::Io, RASTER_PAT, ".tif", "_warped") },
-        Spec { together: Together::Only, fmt_kinds: R, out_name: "mosaic",
-               ..spec("mosaic", "Mosaic", Kind::Io, RASTER_PAT, ".tif", "") },
+        Spec { together: Together::Optional, fmt_kinds: R, out_name: "warped", ..spec("warp", "Warp", Kind::Io, RASTER_PAT, ".tif", "_warped") },
+        Spec { together: Together::Only, fmt_kinds: R, out_name: "mosaic", ..spec("mosaic", "Mosaic", Kind::Io, RASTER_PAT, ".tif", "") },
         Spec { fmt_kinds: R, ..spec("rasterize", "Rasterize", Kind::Io, VECTOR_PAT, ".tif", "_raster") },
         spec("polygonize", "Polygonize", Kind::Io, RASTER_PAT, ".gpkg", "_polygons"),
         Spec { fmt_kinds: R, ..spec("dem", "DEM", Kind::Dem, RASTER_PAT, ".tif", "_hillshade") },
-        Spec { together: Together::Optional, fmt_kinds: R, out_name: "calc",
-               ..spec("calc", "Calc", Kind::Calc, RASTER_PAT, ".tif", "_calc") },
+        Spec { together: Together::Optional, fmt_kinds: R, out_name: "calc", ..spec("calc", "Calc", Kind::Calc, RASTER_PAT, ".tif", "_calc") },
         Spec { fmt_kinds: R, ..spec("proximity", "Proximity", Kind::Io, RASTER_PAT, ".tif", "_proximity") },
         Spec { fmt_kinds: R, ..spec("sieve", "Sieve", Kind::Io, RASTER_PAT, ".tif", "_sieved") },
         Spec { fmt_kinds: R, ..spec("grid", "Grid points", Kind::Io, CLOUD_PAT, ".tif", "_grid") },
-        Spec { together: Together::Optional, subs: true, out_name: "merged",
-               ..spec("filter", "Point filters", Kind::Io, CLOUD_PAT, ".laz", "_filtered") },
+        Spec { together: Together::Optional, subs: true, out_name: "merged", ..spec("filter", "Point filters", Kind::Io, CLOUD_PAT, ".laz", "_filtered") },
         spec("crs", "CRS", Kind::Crs, "", "", ""),
         spec("formats", "Formats", Kind::Formats, "", "", ""),
     ]

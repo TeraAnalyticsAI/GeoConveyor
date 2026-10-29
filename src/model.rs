@@ -74,7 +74,7 @@ impl Field {
                     return Ok(vec![]);
                 }
                 if vals.iter().any(|v| v.is_empty()) {
-                    return Err(format!("{} needs {} values ({}).", long, vals.len(), self.opt.metas.join(" ")));
+                    return Err(tf("{} needs {} values ({}).", &[long, vals.len().to_string(), self.opt.metas.join(" ")]));
                 }
                 let mut out = vec![long];
                 out.extend(vals);
@@ -93,12 +93,7 @@ impl Field {
     }
 
     pub fn set(&mut self, v: &Value) {
-        let ok = matches!(
-            (&self.kind, v),
-            (FieldKind::Flag, Value::Flag(_))
-                | (FieldKind::Multi, Value::Multi(_))
-                | (FieldKind::Single | FieldKind::Repeat, Value::Text(_))
-        );
+        let ok = matches!((&self.kind, v), (FieldKind::Flag, Value::Flag(_)) | (FieldKind::Multi, Value::Multi(_)) | (FieldKind::Single | FieldKind::Repeat, Value::Text(_)));
         if !ok {
             return;
         }
@@ -115,6 +110,8 @@ impl Field {
 #[derive(Clone, Debug, Default)]
 pub struct Form {
     pub summary: String,
+    /// Example text printed after the options in terrio's help, when there is any.
+    pub notes: String,
     pub fields: Vec<Field>,
     pub sections: Vec<String>,
     /// Set after loading saved values: sections with a value open on the next frame.
@@ -141,7 +138,7 @@ impl Form {
             }
             fields.push(Field::new(o.clone(), choices));
         }
-        let mut f = Form { summary: hp.summary.clone(), fields, sections, expand_pending: false, ty: InputType::Image, cmd_key: cmd_key.to_string() };
+        let mut f = Form { summary: hp.summary.clone(), notes: hp.notes.clone(), fields, sections, expand_pending: false, ty: InputType::Image, cmd_key: cmd_key.to_string() };
         f.reset(defaults);
         f
     }
@@ -314,7 +311,11 @@ impl TabState {
     }
 
     pub fn form_key(&self) -> String {
-        if self.spec.subs { self.sub.clone() } else { String::new() }
+        if self.spec.subs {
+            self.sub.clone()
+        } else {
+            String::new()
+        }
     }
 
     pub fn form(&self) -> Option<&Form> {
@@ -327,11 +328,7 @@ impl TabState {
     }
 
     fn format_names(&self, formats: &[Format]) -> Vec<String> {
-        formats
-            .iter()
-            .filter(|f| f.write && (self.spec.fmt_kinds.is_empty() || self.spec.fmt_kinds.contains(&f.kind.as_str())))
-            .map(|f| f.name.clone())
-            .collect()
+        formats.iter().filter(|f| f.write && (self.spec.fmt_kinds.is_empty() || self.spec.fmt_kinds.contains(&f.kind.as_str()))).map(|f| f.name.clone()).collect()
     }
 
     /// (Re)read --help and make sure the current form exists.
@@ -592,44 +589,69 @@ impl Settings {
     }
 
     pub fn load() -> Settings {
+        Self::load_checked().0
+    }
+
+    /// Load settings, also returning a message when an existing file could not be read.
+    pub fn load_checked() -> (Settings, Option<String>) {
         migrate_old_config();
-        Self::path().and_then(|p| std::fs::read_to_string(p).ok()).map(|s| Self::from_json(&s)).unwrap_or_default()
+        let Some(p) = Self::path() else { return (Settings::default(), None) };
+        match std::fs::read_to_string(&p) {
+            Ok(text) => match serde_json::from_str::<Settings>(&text) {
+                Ok(s) => (migrate(s), None),
+                Err(e) => (Settings::default(), Some(tf("Settings could not be read ({}). Starting with defaults.", &[e.to_string()]))),
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Settings::default(), None),
+            Err(e) => (Settings::default(), Some(tf("Settings could not be read ({}). Starting with defaults.", &[e.to_string()]))),
+        }
     }
 
     /// Parse a settings file, carrying an older single-session file forward.
     pub fn from_json(json: &str) -> Settings {
-        let mut s: Settings = serde_json::from_str(json).unwrap_or_default();
-        if s.sessions.is_empty() && (s.globals.is_some() || !s.tabs.is_empty()) {
-            let lg = s.globals.take().unwrap_or_default();
-            let d = Globals::default();
-            if s.terrio.is_empty() {
-                s.terrio = lg.terrio.clone();
-            }
-            s.sessions.push(SessionSettings {
-                globals: Globals {
-                    in_dir: lg.in_dir,
-                    out_dir: lg.out_dir,
-                    recursive: lg.recursive.unwrap_or(d.recursive),
-                    keep_tree: lg.keep_tree.unwrap_or(d.keep_tree),
-                    parallel: lg.parallel.unwrap_or(d.parallel),
-                },
-                active: String::new(),
-                tabs: std::mem::take(&mut s.tabs),
-            });
-        }
-        s
+        migrate(serde_json::from_str(json).unwrap_or_default())
     }
 
-    pub fn save(&self) {
-        if let Some(p) = Self::path() {
-            if let Some(d) = p.parent() {
-                let _ = std::fs::create_dir_all(d);
-            }
-            if let Ok(s) = serde_json::to_string_pretty(self) {
-                let _ = std::fs::write(p, s);
-            }
-        }
+    pub fn save(&self) -> Result<(), String> {
+        let p = Self::path().ok_or_else(|| "no configuration directory".to_string())?;
+        self.save_to(&p)
     }
+
+    /// Write atomically (temporary file then rename) so a crash cannot truncate the settings.
+    fn save_to(&self, p: &std::path::Path) -> Result<(), String> {
+        if let Some(d) = p.parent() {
+            std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+        }
+        let text = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
+        let tmp = p.with_extension("json.tmp");
+        std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+        if let Err(e) = std::fs::rename(&tmp, p) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e.to_string());
+        }
+        Ok(())
+    }
+}
+
+fn migrate(mut s: Settings) -> Settings {
+    if s.sessions.is_empty() && (s.globals.is_some() || !s.tabs.is_empty()) {
+        let lg = s.globals.take().unwrap_or_default();
+        let d = Globals::default();
+        if s.terrio.is_empty() {
+            s.terrio = lg.terrio.clone();
+        }
+        s.sessions.push(SessionSettings {
+            globals: Globals {
+                in_dir: lg.in_dir,
+                out_dir: lg.out_dir,
+                recursive: lg.recursive.unwrap_or(d.recursive),
+                keep_tree: lg.keep_tree.unwrap_or(d.keep_tree),
+                parallel: lg.parallel.unwrap_or(d.parallel),
+            },
+            active: String::new(),
+            tabs: std::mem::take(&mut s.tabs),
+        });
+    }
+    s
 }
 
 /// `order` with unknown keys dropped and missing ones appended, so a saved order stays valid
@@ -671,4 +693,31 @@ fn migrate_old_config() {
         }
     }
     copy_dir(&old, &new);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_save_is_atomic_and_round_trips() {
+        let d = std::env::temp_dir().join(format!("geoconveyor-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let p = d.join("settings.json");
+        let s = Settings { terrio: "/opt/terrio".into(), language: "es".into(), ..Settings::default() };
+        s.save_to(&p).unwrap();
+        let back = Settings::from_json(&std::fs::read_to_string(&p).unwrap());
+        assert_eq!(back.terrio, "/opt/terrio");
+        assert_eq!(back.language, "es");
+        assert!(!p.with_extension("json.tmp").exists(), "temporary file was left behind");
+    }
+
+    #[test]
+    fn multi_value_fields_report_missing_parts() {
+        let opt = Opt { long: "--tr".into(), metas: vec!["XRES".into(), "YRES".into()], section: "Options".into(), ..Default::default() };
+        let mut f = Field::new(opt, vec![]);
+        f.set(&Value::Multi(vec!["1".into(), "".into()]));
+        let e = f.tokens().unwrap_err();
+        assert!(e.contains("--tr") && e.contains('2'), "{e}");
+    }
 }

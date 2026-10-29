@@ -15,7 +15,7 @@
 
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Pack {
@@ -26,21 +26,11 @@ pub struct Pack {
 }
 
 /// Packs compiled into the program.
-const BUILT_IN: &[&str] = &[
-    include_str!("../lang/en.json"),
-    include_str!("../lang/es.json"),
-    include_str!("../lang/fr.json"),
-    include_str!("../lang/de.json"),
-];
+const BUILT_IN: &[&str] = &[include_str!("../lang/en.json"), include_str!("../lang/es.json"), include_str!("../lang/fr.json"), include_str!("../lang/de.json")];
 
 /// Languages planned but not shipped yet: shown greyed out in Settings.
 /// (Chinese and Japanese also need a CJK font loaded before they can be drawn.)
-pub const PLANNED: &[(&str, &str)] = &[
-    ("pt", "Português"),
-    ("it", "Italiano"),
-    ("zh", "Chinese"),
-    ("ja", "Japanese"),
-];
+pub const PLANNED: &[(&str, &str)] = &[("pt", "Português"), ("it", "Italiano"), ("zh", "Chinese"), ("ja", "Japanese")];
 
 /// The Help window: (heading, text).
 pub const HELP: &[(&str, &str)] = &[
@@ -57,10 +47,20 @@ pub const HELP: &[(&str, &str)] = &[
 /// Text that reaches `t()` through a variable, so it cannot be found by scanning for `t("...")`.
 /// (Tab titles, input-type labels and job statuses are added by the test from their own lists.)
 pub const DYNAMIC_KEYS: &[&str] = &[
-    "System", "Light", "Dark",
-    "File", "Size", "Status", "Time", "Output size / note",
-    "{} failed", "{} skipped", "{} cancelled",
-    "Options", "Vector options", "Point cloud options",
+    "System",
+    "Light",
+    "Dark",
+    "File",
+    "Size",
+    "Status",
+    "Time",
+    "Output size / note",
+    "{} failed",
+    "{} skipped",
+    "{} cancelled",
+    "Options",
+    "Vector options",
+    "Point cloud options",
 ];
 
 static CURRENT: RwLock<Option<Arc<Pack>>> = RwLock::new(None);
@@ -73,8 +73,7 @@ fn external_dir() -> Option<std::path::PathBuf> {
     dirs::config_dir().map(|d| d.join("geoconveyor").join("lang"))
 }
 
-/// Built-in packs plus any found in the user's lang folder (which win on the same code).
-pub fn all_packs() -> Vec<Pack> {
+fn load_packs() -> Vec<Pack> {
     let mut packs = built_in();
     if let Some(dir) = external_dir() {
         if let Ok(rd) = std::fs::read_dir(dir) {
@@ -91,9 +90,25 @@ pub fn all_packs() -> Vec<Pack> {
     packs
 }
 
+fn packs_cache() -> &'static RwLock<Arc<Vec<Pack>>> {
+    static PACKS: OnceLock<RwLock<Arc<Vec<Pack>>>> = OnceLock::new();
+    PACKS.get_or_init(|| RwLock::new(Arc::new(load_packs())))
+}
+
+/// Built-in packs plus any found in the user's lang folder (which win on the same code).
+/// Parsed once: the Settings window reads this every frame.
+pub fn all_packs() -> Arc<Vec<Pack>> {
+    packs_cache().read().unwrap().clone()
+}
+
+/// Re-read the language folder (e.g. after the user drops in a new pack).
+pub fn refresh_packs() {
+    *packs_cache().write().unwrap() = Arc::new(load_packs());
+}
+
 /// Switch language. Unknown codes fall back to English.
 pub fn set_language(code: &str) {
-    let pack = all_packs().into_iter().find(|p| p.code == code);
+    let pack = all_packs().iter().find(|p| p.code == code).cloned();
     let pack = pack.filter(|p| p.code != "en").map(Arc::new);
     *CURRENT.write().unwrap() = pack;
 }
@@ -106,7 +121,11 @@ pub fn current_code() -> String {
 pub fn detect() -> String {
     let raw = ["LC_ALL", "LC_MESSAGES", "LANG"].iter().filter_map(|k| std::env::var(k).ok()).find(|v| !v.is_empty()).unwrap_or_default();
     let code: String = raw.chars().take_while(|c| c.is_ascii_alphabetic()).collect::<String>().to_lowercase();
-    if all_packs().iter().any(|p| p.code == code) { code } else { "en".into() }
+    if all_packs().iter().any(|p| p.code == code) {
+        code
+    } else {
+        "en".into()
+    }
 }
 
 pub fn t(key: &str) -> String {

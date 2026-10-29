@@ -43,7 +43,6 @@
   "EPSG:4326, WKT, PROJ string or a file": "EPSG:4326, WKT, PROJ string or a file",
   "Coordinates": "Coordinates",
   "to transform (with --to): x y [x y …]": "to transform (with --to): x y [x y …]",
-  "Each file becomes input A. In 'together' mode the files become A, B, C… in name order. Extra fixed inputs can be added under --input (B=path).": "Each file becomes input A. In 'together' mode the files become A, B, C… in name order. Extra fixed inputs can be added under --input (B=path).",
   "Search options…": "Search options…",
   "Reset options": "Reset options",
   "No options available (terrio not found?).": "No options available (terrio not found?).",
@@ -158,6 +157,11 @@
   "Done": "Done",
   "Failed": "Failed",
   "Skipped": "Skipped",
-  "Cancelled": "Cancelled"
+  "Cancelled": "Cancelled",
+  "{} needs {} values ({}).": "{} needs {} values ({}).",
+  "In 'together' mode the files are added as --input A, B, C…; remove the --input option, or use 'Each file separately'.": "In 'together' mode the files are added as --input A, B, C…; remove the --input option, or use 'Each file separately'.",
+  "Settings could not be saved: {}": "Settings could not be saved: {}",
+  "Settings could not be read ({}). Starting with defaults.": "Settings could not be read ({}). Starting with defaults.",
+  "Each file becomes input A. In 'together' mode the files become A, B, C… in name order, and the --input option is unavailable. Extra fixed inputs can be added under --input (B=path) when processing each file separately.": "Each file becomes input A. In 'together' mode the files become A, B, C… in name order, and the --input option is unavailable. Extra fixed inputs can be added under --input (B=path) when processing each file separately."
  }
 }
